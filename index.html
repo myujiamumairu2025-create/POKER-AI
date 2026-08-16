@@ -7,7 +7,7 @@
 <style>
 body{background:#002b00;color:#fff;font-family:"Segoe UI",sans-serif;text-align:center;margin:0;padding:0}
 #rankButton,#ruleButton{position:absolute;top:150px;padding:8px 16px;font-size:16px;border-radius:10px;background:#444;color:#fff;cursor:pointer}
-#rankButton{left:10px;top:150px}#ruleButton{right:10px}
+#rankButton{left:10px}
 #ruleButton{right:10px}
 #money,#currentRaise,#levelArea{position:absolute;font-weight:bold}
 #money{top:10px;left:20px;font-size:24px}
@@ -22,16 +22,25 @@ body{background:#002b00;color:#fff;font-family:"Segoe UI",sans-serif;text-align:
 #cpuLT_action{top:2%;left:10%}#cpuLB_action{top:62%;left:10%}#cpuRT_action{top:2%;right:10%}#cpuRB_action{top:62%;right:10%}
 #p1{bottom:5%;left:42%}#p2{bottom:5%;left:50%}
 #c1{top:32%;left:34%}#c2{top:32%;left:40%}#c3{top:32%;left:46%}#c4{top:32%;left:52%}#c5{top:32%;left:58%}
-button{padding:10px 20px;margin:5px;font-size:18px;border-radius:10px}
+button{padding:10px 20px;margin:5px;font-size:18px;border-radius:10px;cursor:pointer}
 #status{margin:20px auto;font-size:18px;max-width:900px;line-height:1.5;min-height:40px}
 #betArea{margin-top:20px}#betInput{font-size:20px;padding:5px;width:150px}
-.chip{position:absolute;width:40px;height:40px;background:gold;border-radius:50%;display:none;justify-content:center;align-items:center;font-weight:bold;color:#000;z-index:999}
+.chip{position:absolute;width:40px;height:40px;background:gold;border-radius:50%;display:none;justify-content:center;align-items:center;font-weight:bold;color:#000;z-index:999;transition:left 1s ease-in-out, top 1s ease-in-out}
+
+#nameArea{position:absolute;top:10px;right:20px;font-size:16px;font-weight:bold;z-index:20}
+#playerName{width:120px;padding:5px;border-radius:6px;border:1px solid #aaa}
+#nameArea button{padding:5px 10px;margin-left:3px;font-size:14px}
 </style>
 </head>
 <body>
 <button id="rankButton" onclick="showRanking()">ランキング</button>
 <button id="ruleButton" onclick="showRules()">ルール</button>
 
+<div id="nameArea">
+  <label for="playerName">名前：</label>
+  <input id="playerName" type="text" maxlength="12" placeholder="プレイヤー名">
+  <button onclick="savePlayerName()">決定</button>
+</div>
 <div id="money">所持金：1000000円</div>
 <div id="levelArea">CPUレベル：
 <select id="levelSelect" onchange="setCpuLevel()">
@@ -66,31 +75,65 @@ button{padding:10px 20px;margin:5px;font-size:18px;border-radius:10px}
 
 <script>
 let money=1000000,pot=0,currentBet=0,gameStep=0,cpuLevel=1;
-let gameStarted=false,waitingForPlayer=false,actorIndex=0;
+let playerName=localStorage.getItem("pokerPlayerName")||"プレイヤー";
+let sessionBest=Number(localStorage.getItem("pokerSessionBest")||1000000);
+let ranking=JSON.parse(localStorage.getItem("pokerRanking")||"{}");
+
+let gameStarted=false,waitingForPlayer=false,actorIndex=0,playerActive=true;
 const ANTE=100;
 const suits=["♠","♥","♦","♣"],ranks=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
-let deck=[],player=[],community=[],ranking={1:[],2:[],3:[],4:[]};
-const cpu={LT:[],LB:[],RT:[],RB:[]};
+let deck=[],player=[],community=[];
+const cpu={LT:{money:1000000},LB:{money:1000000},RT:{money:1000000},RB:{money:1000000}};
 const cpuState={
 LT:{active:true,streetBet:0,total:0},LB:{active:true,streetBet:0,total:0},
 RT:{active:true,streetBet:0,total:0},RB:{active:true,streetBet:0,total:0}
 };
 const actors=["P","LT","LB","RT","RB"];
+let playerStreetBet=0;
+
+function savePlayerName(){
+  const input=document.getElementById("playerName");
+  const value=(input.value||"").trim();
+  playerName=value||"プレイヤー";
+  localStorage.setItem("pokerPlayerName",playerName);
+  input.value=playerName;
+  document.getElementById("status").innerHTML="名前を「"+playerName+"」に設定しました。";
+}
+
+function updateSessionBest(){
+  if(money>sessionBest){
+    sessionBest=money;
+    localStorage.setItem("pokerSessionBest",String(sessionBest));
+  }
+}
+
+function saveRankingRecord(){
+  if(!ranking[cpuLevel]) ranking[cpuLevel]=[];
+  const best=sessionBest;
+  const existing=ranking[cpuLevel].find(r=>r.name===playerName);
+  if(existing){
+    existing.money=Math.max(existing.money,best);
+  }else{
+    ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel});
+  }
+  localStorage.setItem("pokerRanking",JSON.stringify(ranking));
+}
 
 function showText(id,text){document.getElementById(id).innerText=text}
-function updateMoney(){document.getElementById("money").innerText="所持金："+money+"円"}
+function updateMoney(){
+  document.getElementById("money").innerText="所持金："+money+"円";
+  updateSessionBest();
+}
 function updatePotDisplay(){document.getElementById("potDisplay").innerText="ポット："+pot+"円"}
 function updateRaiseDisplay(){document.getElementById("currentRaise").innerText="現在のレイズ額："+currentBet+"円"}
 function setCpuLevel(){cpuLevel=Number(document.getElementById("levelSelect").value)}
 function newDeck(){deck=[];for(const s of suits)for(const r of ranks)deck.push(r+s);shuffle(deck)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
-function activeCount(){return 1+["LT","LB","RT","RB"].filter(p=>cpuState[p].active).length}
-function getPlayerStack(){return money}
+function activeCount(){return (playerActive?1:0)+["LT","LB","RT","RB"].filter(p=>cpuState[p].active).length}
 function getStack(pos){return pos==="P"?money:cpu[pos].money}
 function setStack(pos,v){if(pos==="P")money=v;else cpu[pos].money=v}
 function getStreetBet(pos){return pos==="P"?playerStreetBet:cpuState[pos].streetBet}
 function setStreetBet(pos,v){if(pos==="P")playerStreetBet=v;else cpuState[pos].streetBet=v}
-let playerStreetBet=0;
 
 function putChips(pos,amount){
   if(amount<=0)return false;
@@ -104,7 +147,7 @@ function putChips(pos,amount){
 function requiredToCall(pos){return Math.max(0,currentBet-getStreetBet(pos))}
 function allOthersMatched(){
   for(const pos of actors){
-    if(pos==="P"){if(true){}}
+    if(pos==="P" && !playerActive) continue;
     if(pos!=="P" && !cpuState[pos].active)continue;
     if(getStreetBet(pos)!==currentBet && getStack(pos)>0)return false;
   }
@@ -113,7 +156,10 @@ function allOthersMatched(){
 
 function startGame(){
   if(gameStarted){return}
-  money=1000000;pot=0;currentBet=0;gameStep=0;playerStreetBet=0;
+  const input=document.getElementById("playerName");
+  if(input && input.value.trim()) savePlayerName();
+  money=1000000;pot=0;currentBet=0;gameStep=0;playerStreetBet=0;playerActive=true;
+  sessionBest=Math.max(sessionBest, money);
   newDeck();community=[];gameStarted=true;waitingForPlayer=false;
   player=[deck.pop(),deck.pop()];
   for(const pos of ["LT","LB","RT","RB"]){
@@ -121,7 +167,6 @@ function startGame(){
     cpu[pos].money=1000000;
     cpuState[pos].active=true;cpuState[pos].streetBet=0;cpuState[pos].total=0;
   }
-  // 全員が100円アンティを支払う
   for(const pos of actors)putChips(pos,ANTE);
   currentBet=0;playerStreetBet=0;
   for(const pos of ["LT","LB","RT","RB"])cpuState[pos].streetBet=0;
@@ -130,6 +175,9 @@ function startGame(){
   ["cpuLT_action","cpuLB_action","cpuRT_action","cpuRB_action"].forEach(id=>showText(id,""));
   ["c1","c2","c3","c4","c5"].forEach(id=>showText(id,""));
   updateMoney();updatePotDisplay();updateRaiseDisplay();
+  if(document.getElementById("playerName")){
+    document.getElementById("playerName").value=playerName;
+  }
   document.getElementById("status").innerHTML="ゲーム開始！全員アンティ100円。<br>あなたの番です。BET / RAISE / CHECK / FOLD を選択してください。";
   startStreet();
 }
@@ -143,7 +191,7 @@ function startStreet(){
 function nextActor(){
   if(!gameStarted||gameStep===4)return;
   if(activeCount()===1){showdown();return}
-  const activePositions=actors.filter(p=>p==="P"||cpuState[p].active);
+  const activePositions=actors.filter(p=>(p==="P"&&playerActive)||cpuState[p].active);
   if(actorIndex>=activePositions.length){
     if(allOthersMatched()){endStreet();return}
     actorIndex=0;
@@ -154,7 +202,7 @@ function nextActor(){
 }
 function setStatus(msg){document.getElementById("status").innerHTML+= "<br>"+msg}
 function cpuDecision(pos){
-  const cards=[...cpu[pos],...community],ev=gameStep===0?cpuExpectValue(cpu[pos][0],cpu[pos][1]):cpuEV(pos);
+  const ev=gameStep===0?cpuExpectValue(cpu[pos][0],cpu[pos][1]):cpuEV(pos);
   const call=requiredToCall(pos);
   if(getStack(pos)<=0)return "call";
   if(cpuLevel===1){
@@ -237,11 +285,12 @@ function playerBetOrRaise(){
 }
 function playerFold(){
   if(!canPlayerAct())return;
+  playerActive=false;
   document.getElementById("status").innerHTML+="<br>プレイヤー：FOLD<br>ゲーム終了。";
   gameStarted=false;gameStep=4;
-  addRanking("プレイヤーFOLD",money);updateRaiseDisplay();
+  updateSessionBest();saveRankingRecord();updateRaiseDisplay();
 }
-function canPlayerAct(){if(!gameStarted||!waitingForPlayer||gameStep===4){alert("今はあなたの番ではありません。");return false}return true}
+function canPlayerAct(){if(!gameStarted||!waitingForPlayer||gameStep===4||!playerActive){alert("今はあなたの番ではありません。");return false}return true}
 
 function endStreet(){
   if(activeCount()<=1){showdown();return}
@@ -280,7 +329,6 @@ function evaluateHand(cards){
   let straightHigh=0;
   for(let i=0;i<=uniq.length-5;i++)if(uniq[i]-uniq[i+4]===4){straightHigh=uniq[i];break}
   if(!straightHigh&&uniq.includes(14)&&uniq.includes(5)&&uniq.includes(4)&&uniq.includes(3)&&uniq.includes(2))straightHigh=5;
-  const counts=Object.values(rc).sort((a,b)=>b-a);
   const four=Object.keys(rc).find(r=>rc[r]===4);
   const threes=Object.keys(rc).filter(r=>rc[r]===3).sort((a,b)=>rv[b]-rv[a]);
   const pairs=Object.keys(rc).filter(r=>rc[r]>=2).sort((a,b)=>rv[b]-rv[a]);
@@ -298,7 +346,7 @@ function evaluateHand(cards){
 function showdown(){
   if(!gameStarted&&gameStep===4)return;
   const board=[...community],results=[];
-  results.push({name:"プレイヤー",active:true,hand:evaluateHand([...player,...board])});
+  if(playerActive) results.push({name:"プレイヤー",active:true,hand:evaluateHand([...player,...board])});
   for(const pos of ["LT","LB","RT","RB"]){
     if(cpuState[pos].active)results.push({name:"CPU_"+pos,active:true,hand:evaluateHand([...cpu[pos],...board])});
   }
@@ -319,15 +367,29 @@ function showdown(){
   if(winners.some(w=>w.name==="プレイヤー")&&remainder)money+=remainder;
   msg+="ポット："+pot+"円を分配しました。<br>";
   document.getElementById("status").innerHTML+=msg;
-  addRanking("プレイヤー",money);
+  updateSessionBest();saveRankingRecord();
   pot=0;currentBet=0;updateMoney();updatePotDisplay();updateRaiseDisplay();
   gameStarted=false;gameStep=4;
 }
-function addRanking(name,moneyAmount){ranking[cpuLevel].push({name,money:moneyAmount,level:cpuLevel})}
+function addRanking(name,moneyAmount){
+  if(!ranking[cpuLevel]) ranking[cpuLevel]=[];
+  ranking[cpuLevel].push({name:name,money:moneyAmount,level:cpuLevel});
+  localStorage.setItem("pokerRanking",JSON.stringify(ranking));
+}
 function showRanking(){
-  let list=ranking[cpuLevel].slice().sort((a,b)=>b.money-a.money).slice(0,100);
-  document.getElementById("status").innerHTML="<h2>ランキング（レベル"+cpuLevel+"）</h2>"+
-    (list.length?list.map((r,i)=>(i+1)+"位："+r.name+" "+r.money+"円").join("<br>"):"まだ記録がありません。")
+  updateSessionBest();
+  saveRankingRecord();
+  const list=(ranking[cpuLevel]||[])
+    .slice()
+    .sort((a,b)=>b.money-a.money)
+    .slice(0,100);
+
+  document.getElementById("status").innerHTML=
+    "<h2>ランキング（レベル"+cpuLevel+"）</h2>"+
+    "<div style='margin-bottom:8px'>あなたの最高金額："+sessionBest+"円</div>"+
+    (list.length
+      ? list.map((r,i)=>(i+1)+"位："+r.name+" "+r.money+"円").join("<br>")
+      : "まだ記録がありません。");
 }
 function showRules(){
   document.getElementById("status").innerHTML=`
@@ -372,6 +434,10 @@ function animateChip(fromId, toId, amount, callback) {
   }, 1050);
 }
 
+window.addEventListener("beforeunload",()=>{
+  updateSessionBest();
+  saveRankingRecord();
+});
 </script>
 </body>
 </html>
