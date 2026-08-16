@@ -110,11 +110,15 @@ function updateSessionBest(){
 function saveRankingRecord(){
   if(!ranking[cpuLevel]) ranking[cpuLevel]=[];
   const best=sessionBest;
-  const existing=ranking[cpuLevel].find(r=>r.name===playerName);
-  if(existing){
-    existing.money=Math.max(existing.money,best);
+  const existingIdx=ranking[cpuLevel].findIndex(r=>r.name===playerName);
+  if(existingIdx !== -1){
+    // 既存プレイヤーで同額以上の場合は末尾に持っていく（最新として扱う）
+    if(best >= ranking[cpuLevel][existingIdx].money){
+      ranking[cpuLevel].splice(existingIdx, 1);
+      ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel,timestamp:Date.now()});
+    }
   }else{
-    ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel});
+    ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel,timestamp:Date.now()});
   }
   localStorage.setItem("pokerRanking",JSON.stringify(ranking));
 }
@@ -159,7 +163,6 @@ function startGame(){
   const input=document.getElementById("playerName");
   if(input && input.value.trim()) savePlayerName();
   
-  // 所持金が枯渇した時だけリセット
   if(money < ANTE) money = 1000000;
   
   pot=0;currentBet=0;gameStep=0;playerStreetBet=0;playerActive=true;
@@ -377,7 +380,7 @@ function showdown(){
 }
 function addRanking(name,moneyAmount){
   if(!ranking[cpuLevel]) ranking[cpuLevel]=[];
-  ranking[cpuLevel].push({name:name,money:moneyAmount,level:cpuLevel});
+  ranking[cpuLevel].push({name:name,money:moneyAmount,level:cpuLevel,timestamp:Date.now()});
   localStorage.setItem("pokerRanking",JSON.stringify(ranking));
 }
 function showRanking(){
@@ -385,7 +388,14 @@ function showRanking(){
   saveRankingRecord();
   const list=(ranking[cpuLevel]||[])
     .slice()
-    .sort((a,b)=>b.money-a.money)
+    .sort((a,b)=>{
+      if(b.money !== a.money) return b.money - a.money;
+      // 金額が同率の場合はタイムスタンプ（新しい方）、または配列の後ろ（追加が新しい方）を優先
+      const timeA = a.timestamp || 0;
+      const timeB = b.timestamp || 0;
+      if(timeA !== timeB) return timeB - timeA;
+      return 1;
+    })
     .slice(0,100);
 
   document.getElementById("status").innerHTML=
