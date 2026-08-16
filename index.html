@@ -14,10 +14,9 @@ body {
   padding: 0;
 }
 
-/* 左上ランキングボタン（位置を下げた） */
 #rankButton {
   position: absolute;
-  top: 120px;   /* ←ここで位置調整 */
+  top: 120px;
   left: 10px;
   padding: 8px 16px;
   font-size: 16px;
@@ -27,7 +26,6 @@ body {
   cursor: pointer;
 }
 
-/* 右上ルールボタン */
 #ruleButton {
   position: absolute;
   top: 10px;
@@ -149,7 +147,6 @@ button {
   width: 120px;
 }
 
-/* チップアニメーション */
 .chip {
   position: absolute;
   width: 40px;
@@ -170,10 +167,7 @@ button {
 
 <body>
 
-<!-- ランキングボタン -->
 <button id="rankButton" onclick="showRanking()">ランキング</button>
-
-<!-- ルールボタン -->
 <button id="ruleButton" onclick="showRules()">ルール</button>
 
 <div id="money">所持金：10000円</div>
@@ -195,23 +189,19 @@ button {
 <div id="table">
   <div id="potDisplay">ポット：0円</div>
 
-  <!-- CPUカード -->
   <div class="card cpuCard" id="cpuLT"></div>
   <div class="card cpuCard" id="cpuLB"></div>
   <div class="card cpuCard" id="cpuRT"></div>
   <div class="card cpuCard" id="cpuRB"></div>
 
-  <!-- CPUアクション表示 -->
   <div class="cpuAction" id="cpuLT_action"></div>
   <div class="cpuAction" id="cpuLB_action"></div>
   <div class="cpuAction" id="cpuRT_action"></div>
   <div class="cpuAction" id="cpuRB_action"></div>
 
-  <!-- プレイヤー -->
   <div class="card" id="p1"></div>
   <div class="card" id="p2"></div>
 
-  <!-- 場札 -->
   <div class="card" id="c1"></div>
   <div class="card" id="c2"></div>
   <div class="card" id="c3"></div>
@@ -219,7 +209,6 @@ button {
   <div class="card" id="c5"></div>
 </div>
 
-<!-- チップ（アニメーション用） -->
 <div id="chip" class="chip"></div>
 
 <button onclick="startGame()">START</button>
@@ -237,17 +226,13 @@ button {
 <div id="status"></div>
 
 <script>
-/* ============================
-   パート2：初期変数・表示更新
-============================ */
-
-let money = 10000;        // プレイヤー所持金
-let pot = 0;              // ポット
-let currentRaise = 0;     // 現在のレイズ額
-let gameStep = 0;         // 進行状況（0=プリフロップ）
-
-let cpuLevel = 1;         // CPUレベル
-let aggressiveCpu = "RT"; // 攻撃型CPU（右上）
+/* 変数宣言 */
+let money = 10000;
+let pot = 0;
+let currentRaise = 0;
+let gameStep = 0; // 0: Preflop, 1: Flop, 2: Turn, 3: River, 4: End
+let cpuLevel = 1;
+let aggressiveCpu = "RT";
 
 const suits = ["♠","♥","♦","♣"];
 const ranks = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
@@ -263,34 +248,24 @@ let cpuState = {
 
 let player = [];
 let community = [];
+let ranking = { 1:[], 2:[], 3:[], 4:[] };
 
-/* ============================
-   表示更新
-============================ */
 function showText(id, text) {
   document.getElementById(id).innerText = text;
 }
 
 function updateRaiseDisplay() {
-  document.getElementById("currentRaise").innerText =
-    "現在のレイズ額：" + currentRaise + "円";
+  document.getElementById("currentRaise").innerText = "現在のレイズ額：" + currentRaise + "円";
 }
 
 function updatePotDisplay() {
-  document.getElementById("potDisplay").innerText =
-    "ポット：" + pot + "円";
+  document.getElementById("potDisplay").innerText = "ポット：" + pot + "円";
 }
 
-/* ============================
-   CPUレベル設定
-============================ */
 function setCpuLevel() {
   cpuLevel = Number(document.getElementById("levelSelect").value);
 }
 
-/* ============================
-   デッキ生成
-============================ */
 function newDeck() {
   deck = [];
   for (let s of suits) {
@@ -306,35 +281,31 @@ function shuffle(a) {
   }
 }
 
-/* ============================
-   チップアニメーション
-============================ */
 function animateChip(fromId, toId, amount, callback) {
   const chip = document.getElementById("chip");
-  const from = document.getElementById(fromId).getBoundingClientRect();
-  const to = document.getElementById(toId).getBoundingClientRect();
+  const fromEl = document.getElementById(fromId);
+  const toEl = document.getElementById(toId);
+  if (!fromEl || !toEl) { if (callback) callback(); return; }
+
+  const from = fromEl.getBoundingClientRect();
+  const to = toEl.getBoundingClientRect();
 
   chip.style.left = from.left + "px";
   chip.style.top = from.top + "px";
   chip.innerText = amount;
   chip.style.display = "flex";
 
-  // 少し遅らせて移動開始
   setTimeout(() => {
     chip.style.left = to.left + "px";
     chip.style.top = to.top + "px";
   }, 50);
 
-  // 移動完了後に消す
   setTimeout(() => {
     chip.style.display = "none";
     if (callback) callback();
   }, 1100);
 }
 
-/* ============================
-   CPUプリフロップEV（手札2枚の強さ）
-============================ */
 function cpuExpectValue(card1, card2) {
   const rankList = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
   const v1 = rankList.indexOf(card1.slice(0, -1));
@@ -342,154 +313,92 @@ function cpuExpectValue(card1, card2) {
   return (v1 + v2) / 26;
 }
 
-/* ============================
-   CPUストリートEV（7枚の役の強さ）
-============================ */
 function cpuEV(pos) {
-  const cards = [
-    cpu[pos][0],
-    cpu[pos][1],
-    ...community
-  ];
+  const cards = [...cpu[pos], ...community];
   const result = evaluateHand(cards);
-  return result.score / 8; // 0〜1に正規化
+  return result.score / 8;
 }
 
-/* ============================
-   CPU行動判断（レベル1〜4）
-============================ */
 function cpuDecision(ev, street, pos) {
-
   const prevEv =
     street === "flop"  ? cpuState[pos].evHistory.preflop :
     street === "turn"  ? cpuState[pos].evHistory.flop :
-    street === "river" ? cpuState[pos].evHistory.turn :
-    0;
+    street === "river" ? cpuState[pos].evHistory.turn : 0;
 
   const evImproved = ev > prevEv + 0.05;
 
-  /* 攻撃型CPU（RT）はブラフ多め */
   if (pos === aggressiveCpu && cpuLevel >= 2) {
-    if (evImproved) return "raise";
-    if (ev > 0.4) return "raise";
-    if (Math.random() < 0.5) return "raise";
+    if (evImproved || ev > 0.4 || Math.random() < 0.5) return "raise";
     return "call";
   }
 
-  /* レベル1（初心者） */
   if (cpuLevel === 1) {
     if (ev > 0.7) return "raise";
     if (ev > 0.3) return "call";
     return "fold";
   }
-
-  /* レベル2（期待値上昇レイズ） */
   if (cpuLevel === 2) {
-    if (evImproved) return "raise";
-    if (ev > 0.75) return "raise";
+    if (evImproved || ev > 0.75) return "raise";
     if (ev > 0.5) return "call";
     if (Math.random() < 0.10) return "raise";
     return "fold";
   }
-
-  /* レベル3（上級AI） */
   if (cpuLevel === 3) {
-    if (evImproved) return "raise";
-    if (ev > 0.85) return "raise";
+    if (evImproved || ev > 0.85) return "raise";
     if (ev > 0.6) return "call";
     if (Math.random() < 0.15) return "raise";
     if (ev < 0.25) return "fold";
     return "check";
   }
-
-  /* レベル4（超攻撃AI） */
   if (cpuLevel === 4) {
-
-    // 攻撃型CPUはほぼ常にレイズ
     if (pos === aggressiveCpu) {
-      if (ev > 0.3) return "raise";
-      if (evImproved) return "raise";
-      if (Math.random() < 0.5) return "raise";
+      if (ev > 0.3 || evImproved || Math.random() < 0.5) return "raise";
       return "call";
     }
-
-    // 他CPUもかなり攻撃的
-    if (evImproved) return "raise";
-    if (ev > 0.7) return "raise";
+    if (evImproved || ev > 0.7) return "raise";
     if (ev > 0.4) return "call";
     if (Math.random() < 0.2) return "raise";
     if (ev < 0.2) return "fold";
     return "check";
   }
+  return "call";
 }
-</script>
-<script>
-/* ============================
-   パート3：ランキング / ルール表示
-============================ */
 
-/* レベル別ランキング（1〜4） */
-let ranking = { 1:[], 2:[], 3:[], 4:[] };
-
-/* ランキング表示 */
 function showRanking() {
   let list = ranking[cpuLevel];
   let html = `<h2>ランキング（レベル${cpuLevel}）</h2>`;
-
   if (list.length === 0) {
     html += "まだ記録がありません。<br>";
   } else {
     list.sort((a,b)=>b.money - a.money)
         .slice(0,100)
         .forEach((r,i)=>{
-          html += `${i+1}位：${r.name}　${r.money}円<br>`;
+          html += `${i+1}位：${r.name} ${r.money}円<br>`;
         });
   }
   document.getElementById("status").innerHTML = html;
 }
 
-/* ランキング登録 */
 function addRanking(name, moneyAmount) {
   ranking[cpuLevel].push({ name, money: moneyAmount, level: cpuLevel });
 }
 
-/* 初心者向けルール説明 */
 function showRules() {
   const html = `
     <h2>ゲームの遊び方（初心者向け）</h2>
-
-    <h3>① START を押す</h3>
-    ・ゲーム開始、カードが配られる<br><br>
-
-    <h3>② BET を押す</h3>
-    ・最初の賭け金を出す<br>
-    ・CPUが CALL / RAISE / FOLD をする<br><br>
-
+    <h3>① START を押す</h3>・ゲーム開始、カードが配られる<br><br>
+    <h3>② BET を押す</h3>・最初の賭け金を出す<br>・CPUが CALL / RAISE / FOLD をする<br><br>
     <h3>③ CPUの行動を見る</h3><br>
-
     <h3>④ CALL / FOLD / CHECK / RAISE を選ぶ</h3>
-    ・CALL：ついていく<br>
-    ・FOLD：降りる（ゲーム終了）<br>
-    ・CHECK：様子見<br>
-    ・RAISE：賭け金を上げる<br><br>
-
-    <h3>⑤ 場札が開く</h3>
-    ・FLOP → TURN → RIVER<br><br>
-
-    <h3>⑥ SHOWDOWN</h3>
-    ・役で勝敗が決まる<br><br>
-
-    <h3>まとめ：押す順番</h3>
-    START → BET → CPUの行動 → CALL/FOLD/CHECK/RAISE
+    ・CALL：ついていく<br>・FOLD：降りる<br>・CHECK：様子見<br>・RAISE：賭け金を上げる<br><br>
+    <h3>⑤ 場札が開く</h3>・FLOP → TURN → RIVER<br><br>
+    <h3>⑥ SHOWDOWN</h3>・役で勝敗が決まる<br><br>
+    <h3>まとめ：押す順番</h3>START → BET → CPUの行動 → CALL/FOLD/CHECK/RAISE
   `;
   document.getElementById("status").innerHTML = html;
 }
 
-/* ============================
-   START（プリフロップ）
-============================ */
 function startGame() {
-
   if (money < 100) {
     alert("所持金が足りません（100円必要）");
     return;
@@ -526,48 +435,148 @@ function startGame() {
   updateRaiseDisplay();
   updatePotDisplay();
 
-  document.getElementById("status").innerHTML =
-    "ゲーム開始！<br>BETしてください<br>ポット：" + pot + "円";
+  document.getElementById("status").innerHTML = "ゲーム開始！<br>BET額を入力してBETを押してください。";
 }
 
-/* ============================
-   FLOP / TURN / RIVER
-============================ */
+/* アクション・プレイヤー進行処理 */
+function bet() {
+  if (gameStep === 4) return;
+  const inputVal = Number(document.getElementById("betInput").value);
+  const amount = inputVal > 0 ? inputVal : 100;
+
+  if (money < amount) {
+    alert("所持金が足りません");
+    return;
+  }
+
+  money -= amount;
+  pot += amount;
+  currentRaise = amount;
+
+  document.getElementById("money").innerText = "所持金：" + money + "円";
+  updatePotDisplay();
+  updateRaiseDisplay();
+
+  document.getElementById("status").innerHTML = `プレイヤーが ${amount}円 BETしました。<br>`;
+  runCpuTurn();
+}
+
+function playerCall() {
+  if (gameStep === 4) return;
+  const callAmount = currentRaise;
+  if (money < callAmount) {
+    alert("所持金が足りません");
+    return;
+  }
+  money -= callAmount;
+  pot += callAmount;
+  document.getElementById("money").innerText = "所持金：" + money + "円";
+  updatePotDisplay();
+
+  document.getElementById("status").innerHTML += "<br>プレイヤー：CALL<br>";
+  advanceGame();
+}
+
+function playerCheck() {
+  if (gameStep === 4) return;
+  if (currentRaise > 0) {
+    alert("レイズされているためCHECKできません。CALLかRAISEかFOLDを選択してください。");
+    return;
+  }
+  document.getElementById("status").innerHTML += "<br>プレイヤー：CHECK<br>";
+  advanceGame();
+}
+
+function playerRaise() {
+  if (gameStep === 4) return;
+  const inputVal = Number(document.getElementById("betInput").value);
+  const raiseAmt = inputVal > 0 ? inputVal : 200;
+
+  if (money < raiseAmt) {
+    alert("所持金が足りません");
+    return;
+  }
+
+  money -= raiseAmt;
+  pot += raiseAmt;
+  currentRaise = raiseAmt;
+
+  document.getElementById("money").innerText = "所持金：" + money + "円";
+  updatePotDisplay();
+  updateRaiseDisplay();
+
+  document.getElementById("status").innerHTML += `<br>プレイヤー：RAISE (${raiseAmt}円)<br>`;
+  runCpuTurn();
+}
+
+function runCpuTurn() {
+  const streetName = gameStep === 0 ? "preflop" : gameStep === 1 ? "flop" : gameStep === 2 ? "turn" : "river";
+  
+  for (let pos of ["LT","LB","RT","RB"]) {
+    if (!cpuState[pos].active) continue;
+    
+    let ev = gameStep === 0 ? cpuExpectValue(cpu[pos][0], cpu[pos][1]) : cpuEV(pos);
+    cpuState[pos].evHistory[streetName] = ev;
+
+    let action = cpuDecision(ev, streetName, pos);
+
+    if (action === "fold") {
+      cpuState[pos].active = false;
+      showText("cpu" + pos + "_action", "FOLD");
+    } else if (action === "raise") {
+      let add = 100;
+      pot += add;
+      currentRaise += add;
+      showText("cpu" + pos + "_action", "RAISE");
+    } else {
+      showText("cpu" + pos + "_action", "CALL");
+    }
+  }
+
+  updatePotDisplay();
+  updateRaiseDisplay();
+  advanceGame();
+}
+
+function advanceGame() {
+  currentRaise = 0;
+  updateRaiseDisplay();
+
+  if (gameStep === 0) flop();
+  else if (gameStep === 1) turn();
+  else if (gameStep === 2) river();
+  else if (gameStep === 3) showdown();
+}
 
 function flop() {
   community.push(deck.pop(), deck.pop(), deck.pop());
   showText("c1", community[0]);
   showText("c2", community[1]);
   showText("c3", community[2]);
-  document.getElementById("status").innerHTML += "<br>FLOP公開<br>";
+  document.getElementById("status").innerHTML += "<br>--- FLOP公開 ---<br>";
   gameStep = 1;
 }
 
 function turn() {
   community.push(deck.pop());
   showText("c4", community[3]);
-  document.getElementById("status").innerHTML += "<br>TURN公開<br>";
+  document.getElementById("status").innerHTML += "<br>--- TURN公開 ---<br>";
   gameStep = 2;
 }
 
 function river() {
   community.push(deck.pop());
   showText("c5", community[4]);
-  document.getElementById("status").innerHTML += "<br>RIVER公開<br>";
+  document.getElementById("status").innerHTML += "<br>--- RIVER公開 ---<br>";
   gameStep = 3;
 }
 
-/* ============================
-   FOLD（ゲーム終了 → 新しいゲーム）
-============================ */
 function playerFold() {
   document.getElementById("status").innerHTML =
     "プレイヤーは FOLD しました。<br>ゲーム終了です。<br>START を押して新しいゲームを始めてください。";
 
-  // CPU勝利扱い（ランキング登録）
   addRanking("CPU（プレイヤーFOLD）", pot);
 
-  // ゲーム状態リセット
   pot = 0;
   currentRaise = 0;
   gameStep = 4;
@@ -575,11 +584,7 @@ function playerFold() {
   updatePotDisplay();
   updateRaiseDisplay();
 }
-</script>
-<script>
-/* ============================
-   パート4：役判定（簡易版）
-============================ */
+
 function evaluateHand(cards) {
   const rankValue = {
     "A":14,"K":13,"Q":12,"J":11,
@@ -600,12 +605,10 @@ function evaluateHand(cards) {
 
   const uniqVals = [...new Set(values)].sort((a,b)=>b-a);
   let isStraight = false;
-  let straightHigh = 0;
 
   for (let i=0;i<=uniqVals.length-5;i++){
     if (uniqVals[i]-uniqVals[i+4]===4) {
       isStraight = true;
-      straightHigh = uniqVals[i];
       break;
     }
   }
@@ -614,7 +617,6 @@ function evaluateHand(cards) {
       uniqVals.includes(5) && uniqVals.includes(4) &&
       uniqVals.includes(3) && uniqVals.includes(2)) {
     isStraight = true;
-    straightHigh = 5;
   }
 
   const counts = Object.values(rankCount).sort((a,b)=>b-a);
@@ -637,19 +639,9 @@ function evaluateHand(cards) {
   return { score, name, high: values[0] };
 }
 
-/* ============================
-   SHOWDOWN（FOLD時は呼ばれない）
-============================ */
 function showdown() {
+  if (gameStep === 4) return;
 
-  // プレイヤーがFOLDしていたらショーダウンしない
-  if (gameStep === 4) {
-    document.getElementById("status").innerHTML +=
-      "<br>プレイヤーはFOLDしているためショーダウンは行われません。";
-    return;
-  }
-
-  // 通常ショーダウン処理（省略せずそのまま）
   showText("cpuLT", cpuState.LT.active ? cpu.LT[0]+" "+cpu.LT[1] : "FOLD");
   showText("cpuLB", cpuState.LB.active ? cpu.LB[0]+" "+cpu.LB[1] : "FOLD");
   showText("cpuRT", cpuState.RT.active ? cpu.RT[0]+" "+cpu.RT[1] : "FOLD");
@@ -684,7 +676,7 @@ function showdown() {
     }
   }
 
-  let msg = "<br>SHOWDOWN<br>";
+  let msg = "<br>--- SHOWDOWN ---<br>";
   msg += "プレイヤーの役：" + playerHand.name + "<br>";
 
   for (let pos of ["LT","LB","RT","RB"]) {
@@ -718,6 +710,5 @@ function showdown() {
   gameStep = 4;
 }
 </script>
-
 </body>
 </html>
