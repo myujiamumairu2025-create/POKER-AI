@@ -158,13 +158,17 @@ function startGame(){
   if(gameStarted){return}
   const input=document.getElementById("playerName");
   if(input && input.value.trim()) savePlayerName();
-  money=1000000;pot=0;currentBet=0;gameStep=0;playerStreetBet=0;playerActive=true;
+  
+  // 所持金が枯渇した時だけリセット
+  if(money < ANTE) money = 1000000;
+  
+  pot=0;currentBet=0;gameStep=0;playerStreetBet=0;playerActive=true;
   sessionBest=Math.max(sessionBest, money);
   newDeck();community=[];gameStarted=true;waitingForPlayer=false;
   player=[deck.pop(),deck.pop()];
   for(const pos of ["LT","LB","RT","RB"]){
     cpu[pos]=[deck.pop(),deck.pop()];
-    cpu[pos].money=1000000;
+    if(!cpu[pos].money || cpu[pos].money < ANTE) cpu[pos].money=1000000;
     cpuState[pos].active=true;cpuState[pos].streetBet=0;cpuState[pos].total=0;
   }
   for(const pos of actors)putChips(pos,ANTE);
