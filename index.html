@@ -4,29 +4,82 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ポーカーAI</title>
+<!-- Firebase SDK の読み込み -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
 <style>
-body{background:#002b00;color:#fff;font-family:"Segoe UI",sans-serif;text-align:center;margin:0;padding:0;box-sizing:border-box}
 *, *:before, *:after {box-sizing: inherit;}
+body {
+  background: #002b00;
+  color: #fff;
+  font-family: "Segoe UI", sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-#rankButton,#ruleButton{position:absolute;top:150px;padding:10px 20px;font-size:18px;border-radius:10px;background:#444;color:#fff;cursor:pointer;border:none}
-#rankButton{left:10px}
-#ruleButton{right:10px}
-#money,#currentRaise,#levelArea{position:absolute;font-weight:bold}
-#money{top:10px;left:20px;font-size:24px}
-#levelArea{top:50px;left:20px;font-size:18px;font-weight:normal}
-#levelSelect{font-size:16px;padding:4px 8px;border-radius:6px}
-#currentRaise{top:80px;left:50%;transform:translateX(-50%);font-size:24px}
-#table{position:relative;width:70vw;max-width:1400px;aspect-ratio:5/3;margin:120px auto 20px;background:#003300;border-radius:20px}
-#potDisplay{position:absolute;top:5%;left:50%;transform:translateX(-50%);font-size:26px;font-weight:bold;color:#ff0;text-shadow:2px 2px 4px #000}
-.card{position:absolute;width:8%;height:20%;border-radius:15px;background:#006600;display:flex;justify-content:center;align-items:center;font-size:32px;font-weight:bold}
-.cpuCard{transform:rotate(90deg)}
-#cpuLT{top:10%;left:10%}#cpuLB{top:70%;left:10%}#cpuRT{top:10%;right:10%}#cpuRB{top:70%;right:10%}
-.cpuAction{position:absolute;font-size:22px;color:#ff0;text-shadow:2px 2px 4px #000;font-weight:bold}
-#cpuLT_action{top:2%;left:10%}#cpuLB_action{top:62%;left:10%}#cpuRT_action{top:2%;right:10%}#cpuRB_action{top:62%;right:10%}
-#p1{bottom:5%;left:42%}#p2{bottom:5%;left:50%}
-#c1{top:32%;left:34%}#c2{top:32%;left:40%}#c3{top:32%;left:46%}#c4{top:32%;left:52%}#c5{top:32%;left:58%}
+#rankButton, #ruleButton {
+  position: absolute;
+  top: 150px;
+  padding: 10px 20px;
+  font-size: 18px;
+  border-radius: 10px;
+  background: #444;
+  color: #fff;
+  cursor: pointer;
+  border: none;
+}
+#rankButton { left: 10px; }
+#ruleButton { right: 10px; }
 
-/* ボタンと入力フォームのサイズ拡大・重なり防止エリア設定 */
+#money, #currentRaise, #levelArea { position: absolute; font-weight: bold; }
+#money { top: 10px; left: 20px; font-size: 24px; }
+#levelArea { top: 50px; left: 20px; font-size: 18px; font-weight: normal; }
+#levelSelect { font-size: 16px; padding: 4px 8px; border-radius: 6px; }
+#currentRaise { top: 80px; left: 50%; transform: translateX(-50%); font-size: 24px; }
+
+#nameArea { position: absolute; top: 10px; right: 20px; font-size: 16px; font-weight: bold; z-index: 20; }
+#playerName { width: 120px; padding: 6px; border-radius: 6px; border: 1px solid #aaa; font-size: 16px; }
+#nameArea button { padding: 6px 12px; margin-left: 3px; font-size: 15px; }
+
+#table {
+  position: relative;
+  width: 70vw;
+  max-width: 1400px;
+  aspect-ratio: 5/3;
+  margin: 120px auto 20px;
+  background: #003300;
+  border-radius: 20px;
+  border: 4px solid #001a00;
+}
+#potDisplay { position: absolute; top: 5%; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: bold; color: #ff0; text-shadow: 2px 2px 4px #000; }
+
+/* プレイヤー・CPU配置 */
+.seat { position: absolute; font-size: 16px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 8px; }
+#cpuLT { top: 10%; left: 10%; }
+#cpuLB { top: 50%; left: 10%; }
+#cpuRT { top: 10%; right: 10%; }
+#cpuRB { top: 50%; right: 10%; }
+#playerSeat { bottom: 10%; left: 50%; transform: translateX(-50%); }
+
+.action-label { position: absolute; font-weight: bold; color: #ffeb3b; font-size: 16px; text-shadow: 1px 1px 2px #000; }
+#cpuLT_action { top: 18%; left: 10%; }
+#cpuLB_action { top: 58%; left: 10%; }
+#cpuRT_action { top: 18%; right: 10%; }
+#cpuRB_action { top: 58%; right: 10%; }
+
+/* カード配置 */
+.card-slot { position: absolute; font-size: 20px; font-weight: bold; background: #fff; color: #000; border-radius: 6px; padding: 10px 14px; min-width: 45px; text-align: center; }
+#p1 { bottom: 2%; left: 45%; }
+#p2 { bottom: 2%; left: 52%; }
+#c1 { top: 35%; left: 32%; }
+#c2 { top: 35%; left: 39%; }
+#c3 { top: 35%; left: 46%; }
+#c4 { top: 35%; left: 53%; }
+#c5 { top: 35%; left: 60%; }
+
 .controls-container {
   display: flex;
   flex-wrap: wrap;
@@ -37,11 +90,7 @@ body{background:#002b00;color:#fff;font-family:"Segoe UI",sans-serif;text-align:
   margin: 20px auto 10px;
   padding: 0 10px;
 }
-.bet-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.bet-group { display: flex; align-items: center; gap: 8px; }
 
 button {
   padding: 12px 24px;
@@ -66,47 +115,60 @@ button:active { transform: scale(0.98); }
   text-align: right;
 }
 
-#status{margin:15px auto 30px;font-size:18px;max-width:900px;line-height:1.5;min-height:40px}
-.chip{position:absolute;width:40px;height:40px;background:gold;border-radius:50%;display:none;justify-content:center;align-items:center;font-weight:bold;color:#000;z-index:999;transition:left 1s ease-in-out, top 1s ease-in-out}
-
-#nameArea{position:absolute;top:10px;right:20px;font-size:16px;font-weight:bold;z-index:20}
-#playerName{width:120px;padding:6px;border-radius:6px;border:1px solid #aaa;font-size:16px}
-#nameArea button{padding:6px 12px;margin-left:3px;font-size:15px}
+#status { margin: 15px auto 30px; font-size: 18px; max-width: 900px; line-height: 1.5; min-height: 40px; }
+.chip { position: absolute; width: 40px; height: 40px; background: gold; border-radius: 50%; display: none; justify-content: center; align-items: center; font-weight: bold; color: #000; z-index: 999; transition: left 1s ease-in-out, top 1s ease-in-out; }
 </style>
 </head>
 <body>
-<button id="rankButton" onclick="showRanking()">ランキング</button>
-<button id="ruleButton" onclick="showRules()">ルール</button>
+
+<div id="money">所持金: 10000円</div>
+<div id="levelArea">
+  AI レベル: 
+  <select id="levelSelect" onchange="changeLevel()">
+    <option value="1">レベル 1 (ビギナー)</option>
+    <option value="2">レベル 2 (ノーマル)</option>
+    <option value="3">レベル 3 (ハード)</option>
+    <option value="4" selected>レベル 4 (プレイヤー学習型AI)</option>
+  </select>
+</div>
+<div id="currentRaise">現在のベット額: 0円</div>
+
+<button id="rankButton" onclick="showRanking()">オンラインランキング</button>
+<button id="ruleButton" onclick="showRules()">ルール説明</button>
 
 <div id="nameArea">
-  <label for="playerName">名前：</label>
-  <input id="playerName" type="text" maxlength="12" placeholder="プレイヤー名">
-  <button onclick="savePlayerName()">決定</button>
+  名前: <input id="playerName" type="text" value="プレイヤー">
+  <button onclick="savePlayerName()">保存</button>
 </div>
-<div id="money">所持金：1000000円</div>
-<div id="levelArea">CPUレベル：
-<select id="levelSelect" onchange="setCpuLevel()">
-<option value="1">レベル1</option><option value="2">レベル2</option>
-<option value="3">レベル3</option><option value="4">レベル4</option>
-</select></div>
-<div id="currentRaise">現在のレイズ額：0円</div>
-
-<h1>ポーカーAI</h1>
 
 <div id="table">
-<div id="potDisplay">ポット：0円</div>
-<div class="card cpuCard" id="cpuLT"></div><div class="card cpuCard" id="cpuLB"></div>
-<div class="card cpuCard" id="cpuRT"></div><div class="card cpuCard" id="cpuRB"></div>
-<div class="cpuAction" id="cpuLT_action"></div><div class="cpuAction" id="cpuLB_action"></div>
-<div class="cpuAction" id="cpuRT_action"></div><div class="cpuAction" id="cpuRB_action"></div>
-<div class="card" id="p1"></div><div class="card" id="p2"></div>
-<div class="card" id="c1"></div><div class="card" id="c2"></div><div class="card" id="c3"></div>
-<div class="card" id="c4"></div><div class="card" id="c5"></div>
+  <div id="potDisplay">POT: 0円</div>
+  
+  <div id="cpuLT" class="seat">CPU1 (LT)</div>
+  <div id="cpuLB" class="seat">CPU2 (LB)</div>
+  <div id="cpuRT" class="seat">CPU3 (RT)</div>
+  <div id="cpuRB" class="seat">CPU4 (RB)</div>
+  <div id="playerSeat" class="seat">あなた</div>
+
+  <div id="cpuLT_action" class="action-label"></div>
+  <div id="cpuLB_action" class="action-label"></div>
+  <div id="cpuRT_action" class="action-label"></div>
+  <div id="cpuRB_action" class="action-label"></div>
+
+  <!-- コミュニティカード -->
+  <div id="c1" class="card-slot">-</div>
+  <div id="c2" class="card-slot">-</div>
+  <div id="c3" class="card-slot">-</div>
+  <div id="c4" class="card-slot">-</div>
+  <div id="c5" class="card-slot">-</div>
+
+  <!-- プレイヤーカード -->
+  <div id="p1" class="card-slot">-</div>
+  <div id="p2" class="card-slot">-</div>
 </div>
 
 <div id="chip" class="chip"></div>
 
-<!-- ボタン配置用コンテナ（サイズ拡大＆重なり防止対応） -->
 <div class="controls-container">
   <button onclick="startGame()">START</button>
   <div class="bet-group">
@@ -114,311 +176,450 @@ button:active { transform: scale(0.98); }
     <button onclick="playerBetOrRaise()">BET / RAISE</button>
   </div>
   <button onclick="playerCall()">CALL</button>
-  <button onclick="playerFold()">FOLD</button>
   <button onclick="playerCheck()">CHECK</button>
+  <button onclick="playerFold()">FOLD</button>
 </div>
 
-<div id="status"></div>
+<div id="status">「START」を押してゲームを開始してください。</div>
 
 <script>
-let money=1000000,pot=0,currentBet=0,gameStep=0,cpuLevel=1;
-let playerName=localStorage.getItem("pokerPlayerName")||"プレイヤー";
-let sessionBest=Number(localStorage.getItem("pokerSessionBest")||1000000);
-let ranking=JSON.parse(localStorage.getItem("pokerRanking")||"{}");
-
-let gameStarted=false,waitingForPlayer=false,actorIndex=0,playerActive=true;
-const ANTE=100;
-const suits=["♠","♥","♦","♣"],ranks=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
-let deck=[],player=[],community=[];
-const cpu={LT:{money:1000000},LB:{money:1000000},RT:{money:1000000},RB:{money:1000000}};
-const cpuState={
-LT:{active:true,streetBet:0,total:0},LB:{active:true,streetBet:0,total:0},
-RT:{active:true,streetBet:0,total:0},RB:{active:true,streetBet:0,total:0}
+// --- Firebase初期化設定 ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBnuw1dDwKtN7-HPITzpj7-ag3vuN5i9uw",
+  authDomain: "aipoker-95c05.firebaseapp.com",
+  databaseURL: "https://aipoker-95c05-default-rtdb.firebaseio.com",
+  projectId: "aipoker-95c05",
+  storageBucket: "aipoker-95c05.firebasestorage.app",
+  messagingSenderId: "570901976805",
+  appId: "1:570901976805:web:19adfd7e7d65bb262d660c",
+  measurementId: "G-EKK6R1CNMV"
 };
-const actors=["P","LT","LB","RT","RB"];
-let playerStreetBet=0;
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
-function savePlayerName(){
-  const input=document.getElementById("playerName");
-  const value=(input.value||"").trim();
-  playerName=value||"プレイヤー";
-  localStorage.setItem("pokerPlayerName",playerName);
-  input.value=playerName;
-  document.getElementById("status").innerHTML="名前を「"+playerName+"」に設定しました。";
+let money = 10000;
+let cpuLevel = 4;
+let playerName = localStorage.getItem("pokerPlayerName") || "プレイヤー";
+document.getElementById("playerName").value = playerName;
+
+let pot = 0;
+let currentBet = 0;
+let playerStreetBet = 0;
+let gameStarted = false;
+let gameStep = 0; // 0:Preflop, 1:Flop, 2:Turn, 3:River, 4:Showdown/End
+let waitingForPlayer = false;
+let actorIndex = 0;
+let playerActive = true;
+
+let deck = [];
+let player = [];
+let community = [];
+let cpu = { LT: [], LB: [], RT: [], RB: [] };
+let cpuState = {
+  LT: { stack: 10000, active: true, streetBet: 0 },
+  LB: { stack: 10000, active: true, streetBet: 0 },
+  RT: { stack: 10000, active: true, streetBet: 0 },
+  RB: { stack: 10000, active: true, streetBet: 0 }
+};
+
+const actors = ["P", "LT", "LB", "RT", "RB"];
+let activePositions = [];
+
+// --- レベル4: プレイヤータイプ学習用データ ---
+let playerStats = JSON.parse(localStorage.getItem("pokerPlayerStats")) || {
+  handsPlayed: 0,
+  vpipCount: 0,        // Voluntarily Put Money In Pot (参加回数)
+  pfrCount: 0,         // Pre-Flop Raise (プリフロップレイズ回数)
+  postFlopBets: 0,     // ポストフロップでのベット/レイズ回数
+  postFlopCalls: 0,    // ポストフロップでのコール/チェック回数
+  showdownCount: 0,    // ショーダウンに到達した回数
+  bluffShowdowns: 0   // 弱い手(ハイカード/ワンペア)でショーダウン/アグレッションを見せた回数
+};
+
+let currentHandTrack = { vpip: false, pfr: false };
+
+function savePlayerStats() {
+  localStorage.setItem("pokerPlayerStats", JSON.stringify(playerStats));
 }
 
-function updateSessionBest(){
-  if(money>sessionBest){
-    sessionBest=money;
-    localStorage.setItem("pokerSessionBest",String(sessionBest));
-  }
-}
-
-function saveRankingRecord(){
-  if(!ranking[cpuLevel]) ranking[cpuLevel]=[];
-  const best=sessionBest;
-  const existingIdx=ranking[cpuLevel].findIndex(r=>r.name===playerName);
-  if(existingIdx !== -1){
-    if(best >= ranking[cpuLevel][existingIdx].money){
-      ranking[cpuLevel].splice(existingIdx, 1);
-      ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel,timestamp:Date.now()});
-    }
-  }else{
-    ranking[cpuLevel].push({name:playerName,money:best,level:cpuLevel,timestamp:Date.now()});
-  }
-  localStorage.setItem("pokerRanking",JSON.stringify(ranking));
-}
-
-function showText(id,text){document.getElementById(id).innerText=text}
-function updateMoney(){
-  document.getElementById("money").innerText="所持金："+money+"円";
-  updateSessionBest();
-}
-function updatePotDisplay(){document.getElementById("potDisplay").innerText="ポット："+pot+"円"}
-function updateRaiseDisplay(){document.getElementById("currentRaise").innerText="現在のレイズ額："+currentBet+"円"}
-function setCpuLevel(){cpuLevel=Number(document.getElementById("levelSelect").value)}
-function newDeck(){deck=[];for(const s of suits)for(const r of ranks)deck.push(r+s);shuffle(deck)}
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
-function activeCount(){return (playerActive?1:0)+["LT","LB","RT","RB"].filter(p=>cpuState[p].active).length}
-function getStack(pos){return pos==="P"?money:cpu[pos].money}
-function setStack(pos,v){if(pos==="P")money=v;else cpu[pos].money=v}
-function getStreetBet(pos){return pos==="P"?playerStreetBet:cpuState[pos].streetBet}
-function setStreetBet(pos,v){if(pos==="P")playerStreetBet=v;else cpuState[pos].streetBet=v}
-
-function putChips(pos,amount){
-  if(amount<=0)return 0;
-  const stack=getStack(pos);
-  const actualPaid=Math.min(amount, stack);
-  if(actualPaid<=0) return 0;
+function getPlayerStyle() {
+  if (playerStats.handsPlayed < 3) return { type: "UNKNOWN", vpip: 0, pfr: 0, aggRatio: 0 };
   
-  setStack(pos,stack-actualPaid);
-  pot+=actualPaid;
-  setStreetBet(pos,getStreetBet(pos)+actualPaid);
-  updateMoney();updatePotDisplay();
+  const vpip = playerStats.vpipCount / playerStats.handsPlayed;
+  const pfr = playerStats.pfrCount / playerStats.handsPlayed;
+  const totalPostActions = playerStats.postFlopBets + playerStats.postFlopCalls;
+  const aggRatio = totalPostActions > 0 ? playerStats.postFlopBets / totalPostActions : 0.5;
+  const bluffRate = playerStats.showdownCount > 0 ? playerStats.bluffShowdowns / playerStats.showdownCount : 0;
+
+  let type = "";
+  if (vpip > 0.45) {
+    type += "LOOSE-";
+  } else {
+    type += "TIGHT-";
+  }
+
+  if (aggRatio > 0.4 || pfr > 0.25) {
+    type += "AGGRESSIVE";
+  } else {
+    type += "PASSIVE";
+  }
+
+  if (bluffRate > 0.3) {
+    type += " (HIGH-BLUFF)";
+  }
+
+  return { type, vpip, pfr, aggRatio, bluffRate };
+}
+
+let sessionBest = money;
+
+function savePlayerName() {
+  playerName = document.getElementById("playerName").value || "プレイヤー";
+  localStorage.setItem("pokerPlayerName", playerName);
+  alert("名前を保存しました: " + playerName);
+}
+
+function changeLevel() {
+  cpuLevel = Number(document.getElementById("levelSelect").value);
+}
+
+function updateMoney() { document.getElementById("money").innerText = "所持金: " + money + "円"; }
+function updatePotDisplay() { document.getElementById("potDisplay").innerText = "POT: " + pot + "円"; }
+function updateRaiseDisplay() { document.getElementById("currentRaise").innerText = "現在のベット額: " + currentBet + "円"; }
+
+function showText(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.innerText = txt;
+}
+
+function getStack(pos) { return pos === "P" ? money : cpuState[pos].stack; }
+function setStack(pos, v) { if (pos === "P") money = v; else cpuState[pos].stack = v; }
+function getStreetBet(pos) { return pos === "P" ? playerStreetBet : cpuState[pos].streetBet; }
+function setStreetBet(pos, v) { if (pos === "P") playerStreetBet = v; else cpuState[pos].streetBet = v; }
+
+function putChips(pos, amount) {
+  if (amount <= 0) return 0;
+  const stack = getStack(pos);
+  const actualPaid = Math.min(amount, stack);
+  if (actualPaid <= 0) return 0;
+
+  setStack(pos, stack - actualPaid);
+  pot += actualPaid;
+  setStreetBet(pos, getStreetBet(pos) + actualPaid);
+  updateMoney(); updatePotDisplay();
   return actualPaid;
 }
 
-function requiredToCall(pos){return Math.max(0,currentBet-getStreetBet(pos))}
-function allOthersMatched(){
-  for(const pos of actors){
-    if(pos==="P" && !playerActive) continue;
-    if(pos!=="P" && !cpuState[pos].active)continue;
-    if(getStreetBet(pos)!==currentBet && getStack(pos)>0)return false;
+function requiredToCall(pos) { return Math.max(0, currentBet - getStreetBet(pos)); }
+function isPosActive(pos) { return pos === "P" ? playerActive : cpuState[pos].active; }
+function activeCount() { return actors.filter(p => isPosActive(p)).length; }
+
+function createDeck() {
+  const suits = ["♠", "♥", "♦", "♣"];
+  const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+  deck = [];
+  for (let s of suits) for (let r of ranks) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
   }
-  return true;
 }
 
-function startGame(){
-  if(gameStarted){return}
-  const input=document.getElementById("playerName");
-  if(input && input.value.trim()) savePlayerName();
-  
-  if(money < ANTE) money = 1000000;
-  
-  pot=0;currentBet=0;gameStep=0;playerStreetBet=0;playerActive=true;
-  sessionBest=Math.max(sessionBest, money);
-  newDeck();community=[];gameStarted=true;waitingForPlayer=false;
-  player=[deck.pop(),deck.pop()];
-  for(const pos of ["LT","LB","RT","RB"]){
-    cpu[pos]=[deck.pop(),deck.pop()];
-    if(!cpu[pos].money || cpu[pos].money < ANTE) cpu[pos].money=1000000;
-    cpuState[pos].active=true;cpuState[pos].streetBet=0;cpuState[pos].total=0;
+function startGame() {
+  if (money <= 0) { alert("所持金がありません。リセットします。"); money = 10000; }
+  createDeck();
+  pot = 0; currentBet = 0; playerStreetBet = 0;
+  playerActive = true; gameStarted = true; gameStep = 0;
+  currentHandTrack = { vpip: false, pfr: false };
+
+  playerStats.handsPlayed++;
+  savePlayerStats();
+
+  for (let pos of ["LT", "LB", "RT", "RB"]) {
+    cpuState[pos].active = true;
+    cpuState[pos].streetBet = 0;
+    showText("cpu" + pos, "CPU_" + pos);
+    showText("cpu" + pos + "_action", "");
   }
-  for(const pos of actors)putChips(pos,ANTE);
-  currentBet=0;playerStreetBet=0;
-  for(const pos of ["LT","LB","RT","RB"])cpuState[pos].streetBet=0;
-  showText("p1",player[0]);showText("p2",player[1]);
-  ["cpuLT","cpuLB","cpuRT","cpuRB"].forEach(id=>showText(id,"BACK"));
-  ["cpuLT_action","cpuLB_action","cpuRT_action","cpuRB_action"].forEach(id=>showText(id,""));
-  ["c1","c2","c3","c4","c5"].forEach(id=>showText(id,""));
-  updateMoney();updatePotDisplay();updateRaiseDisplay();
-  if(document.getElementById("playerName")){
-    document.getElementById("playerName").value=playerName;
+
+  for (let i = 1; i <= 5; i++) showText("c" + i, "-");
+
+  player = [deck.pop(), deck.pop()];
+  showText("p1", player[0]); showText("p2", player[1]);
+
+  for (let pos of ["LT", "LB", "RT", "RB"]) {
+    cpu[pos] = [deck.pop(), deck.pop()];
   }
-  document.getElementById("status").innerHTML="ゲーム開始！全員アンティ100円。<br>あなたの番です。BET / RAISE / CHECK / FOLD を選択してください。";
+  community = [];
+
+  // アンティ
+  putChips("P", 100);
+  for (let pos of ["LT", "LB", "RT", "RB"]) putChips(pos, 100);
+
+  activePositions = ["P", "LT", "LB", "RT", "RB"];
+  
+  const styleInfo = getPlayerStyle();
+  let statusMsg = "ゲーム開始！全員アンティ100円。<br>あなたの番です。";
+  if (cpuLevel === 4 && styleInfo.type !== "UNKNOWN") {
+    statusMsg += `<br><small style="color:#80d8ff;">[Lv4 AI分析] あなたの傾向: ${styleInfo.type} (VPIP: ${Math.round(styleInfo.vpip*100)}%)</small>`;
+  }
+  
+  document.getElementById("status").innerHTML = statusMsg;
   startStreet();
 }
 
-function startStreet(){
-  currentBet=0;playerStreetBet=0;
-  for(const pos of ["LT","LB","RT","RB"])cpuState[pos].streetBet=0;
+function startStreet() {
+  currentBet = 0; playerStreetBet = 0;
+  for (const pos of ["LT", "LB", "RT", "RB"]) cpuState[pos].streetBet = 0;
   updateRaiseDisplay();
-  waitingForPlayer=true;actorIndex=0;
+  waitingForPlayer = true; actorIndex = 0;
   nextActor();
 }
 
-function nextActor(){
-  if(!gameStarted||gameStep===4)return;
-  if(activeCount()===1){showdown();return}
-  const activePositions=actors.filter(p=>(p==="P"&&playerActive)||cpuState[p].active);
-  if(actorIndex>=activePositions.length){
-    if(allOthersMatched()){endStreet();return}
-    actorIndex=0;
+function nextActor() {
+  if (!gameStarted || gameStep === 4) return;
+  if (activeCount() === 1) { showdown(); return; }
+
+  const activeList = actors.filter(p => isPosActive(p));
+  const allMatched = activeList.every(p => getStreetBet(p) === currentBet || getStack(p) === 0);
+  if (actorIndex >= activePositions.length) {
+    if (allMatched) { endStreet(); return; }
+    actorIndex = 0;
   }
-  const pos=activePositions[actorIndex];
-  if(pos==="P"){
-    if(getStack("P")<=0){
-      actorIndex++;nextActor();return;
-    }
-    waitingForPlayer=true;
+
+  const pos = activePositions[actorIndex];
+  if (!isPosActive(pos)) { actorIndex++; nextActor(); return; }
+
+  if (pos === "P") {
+    if (getStack("P") <= 0) { actorIndex++; nextActor(); return; }
+    waitingForPlayer = true;
     setStatus("あなたの番です。CALL / CHECK / BET / RAISE / FOLD");
-  }else{
-    waitingForPlayer=false;cpuAct(pos);
+  } else {
+    waitingForPlayer = false;
+    cpuAct(pos);
   }
 }
 
-function setStatus(msg){document.getElementById("status").innerHTML+= "<br>"+msg}
+function setStatus(msg) { document.getElementById("status").innerHTML += "<br>" + msg; }
 
-function cpuDecision(pos){
-  const ev=gameStep===0?cpuExpectValue(cpu[pos][0],cpu[pos][1]):cpuEV(pos);
-  const call=requiredToCall(pos);
-  const stack=getStack(pos);
-  if(stack<=0) return "call";
+// --- AI意思決定 ---
+function cpuDecision(pos) {
+  const ev = gameStep === 0 ? cpuExpectValue(cpu[pos][0], cpu[pos][1]) : cpuEV(pos);
+  const call = requiredToCall(pos);
+  const stack = getStack(pos);
 
-  if(call > 5000){
+  if (stack <= 0) return "call";
+
+  if (call > 5000) {
     const oddsThreshold = Math.min(0.85, 0.3 + (call / (stack + pot)) * 0.5);
-    if(ev < oddsThreshold) return "fold";
+    if (ev < oddsThreshold) return "fold";
   }
 
-  if(cpuLevel===1){
-    if(call===0)return ev>0.65?"raise":"check";
-    return ev>0.45?"call":"fold";
+  if (cpuLevel === 1) {
+    if (call === 0) return ev > 0.65 ? "raise" : "check";
+    return ev > 0.45 ? "call" : "fold";
   }
-  if(cpuLevel===2){
-    if(call===0)return ev>0.72?"raise":"check";
-    if(ev>0.55)return "call";
-    return Math.random()<0.08?"raise":"fold";
+  if (cpuLevel === 2) {
+    if (call === 0) return ev > 0.55 ? "raise" : "check";
+    if (ev > 0.6) return "raise";
+    return ev > 0.35 ? "call" : "fold";
   }
-  if(cpuLevel===3){
-    if(call===0)return ev>0.62?"raise":"check";
-    if(ev>0.5)return Math.random()<0.15?"raise":"call";
-    return ev<0.22?"fold":"call";
+  if (cpuLevel === 3) {
+    if (call === 0) return ev > 0.45 ? "raise" : "check";
+    if (ev > 0.7) return "raise";
+    if (ev > 0.28) return Math.random() < 0.25 ? "raise" : "call";
+    return ev < 0.18 ? "fold" : "call";
   }
-  if(call===0)return ev>0.5||Math.random()<0.25?"raise":"check";
-  if(ev>0.55)return Math.random()<0.25?"raise":"call";
-  return ev<0.18?"fold":"call";
+
+  const style = getPlayerStyle();
+  let callEvThreshold = 0.25;
+  let raiseEvThreshold = 0.50;
+
+  if (style.type.includes("LOOSE")) {
+    callEvThreshold -= 0.08;
+    raiseEvThreshold -= 0.05;
+  } else if (style.type.includes("TIGHT")) {
+    callEvThreshold += 0.08;
+    raiseEvThreshold += 0.05;
+  }
+
+  if (style.type.includes("AGGRESSIVE")) {
+    callEvThreshold -= 0.03; 
+  }
+
+  if (style.bluffRate > 0.3) {
+    callEvThreshold -= 0.07;
+  }
+
+  if (call === 0) {
+    return ev > raiseEvThreshold ? "raise" : "check";
+  }
+  if (ev > raiseEvThreshold + 0.15) return "raise";
+  if (ev >= callEvThreshold) return "call";
+  
+  if (Math.random() < 0.08 && ev > 0.2) return "raise";
+
+  return "fold";
 }
 
-function cpuExpectValue(a,b){
-  const list=["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
-  const r1=list.indexOf(a.slice(0,-1)), r2=list.indexOf(b.slice(0,-1));
+function cpuExpectValue(a, b) {
+  const list = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+  const r1 = list.indexOf(a.slice(0, -1)), r2 = list.indexOf(b.slice(0, -1));
   const suited = a.slice(-1) === b.slice(-1) ? 0.1 : 0;
   const pair = r1 === r2 ? 0.25 : 0;
-  return Math.min(0.95, (r1 + r2)/24 + suited + pair);
+  return Math.min(0.95, (r1 + r2) / 24 + suited + pair);
 }
 
-function cpuEV(pos){return evaluateHand([...cpu[pos],...community]).scoreArr[0]/8}
+function cpuEV(pos) {
+  return evaluateHand([...cpu[pos], ...community]).scoreArr[0] / 8;
+}
 
-function cpuAct(pos){
-  const action=cpuDecision(pos),call=requiredToCall(pos);
-  if(action==="fold"){
-    cpuState[pos].active=false;
-    showText("cpu"+pos+"_action","FOLD");
-  }else if(action==="check" || (call===0 && action==="call")){
-    showText("cpu"+pos+"_action","CHECK");
-  }else if(action==="call"){
-    const paid=putChips(pos,call);
-    const isAllIn = getStack(pos)===0 ? " (ALL-IN)" : "";
-    showText("cpu"+pos+"_action","CALL "+paid+"円"+isAllIn);
-  }else if(action==="raise"){
-    const minRaise=Math.max(100,currentBet===0?100:currentBet+100);
-    const target=Math.min(getStreetBet(pos)+Math.max(minRaise,currentBet+100),getStreetBet(pos)+getStack(pos));
-    const amount=Math.max(0,target-getStreetBet(pos));
-    if(amount<=0){
-      const paid=putChips(pos,call);
-      showText("cpu"+pos+"_action","CALL "+paid+"円");
-    }else{
-      const paid=putChips(pos,amount);
-      currentBet=getStreetBet(pos);
-      showText("cpu"+pos+"_action","RAISE "+currentBet+"円");
+function cpuAct(pos) {
+  const action = cpuDecision(pos), call = requiredToCall(pos);
+
+  if (action === "fold") {
+    cpuState[pos].active = false;
+    showText("cpu" + pos + "_action", "FOLD");
+  } else if (action === "check" || (call === 0 && action === "call")) {
+    showText("cpu" + pos + "_action", "CHECK");
+  } else if (action === "call") {
+    const paid = putChips(pos, call);
+    const isAllIn = getStack(pos) === 0 ? " (ALL-IN)" : "";
+    showText("cpu" + pos + "_action", "CALL " + paid + "円" + isAllIn);
+  } else if (action === "raise") {
+    const minRaise = Math.max(100, currentBet === 0 ? 100 : currentBet + 100);
+    const target = Math.min(getStreetBet(pos) + Math.max(minRaise, currentBet + 100), getStreetBet(pos) + getStack(pos));
+    const amount = Math.max(0, target - getStreetBet(pos));
+
+    if (amount <= 0) {
+      const paid = putChips(pos, call);
+      showText("cpu" + pos + "_action", "CALL " + paid + "円");
+    } else {
+      const paid = putChips(pos, amount);
+      currentBet = getStreetBet(pos);
+      showText("cpu" + pos + "_action", "RAISE " + currentBet + "円");
       updateRaiseDisplay();
     }
   }
   actorIndex++;
-  setTimeout(nextActor,350);
+  setTimeout(nextActor, 350);
 }
 
-function playerCall(){
-  if(!canPlayerAct())return;
-  const call=requiredToCall("P");
-  if(call===0){alert("現在のレイズ額が0円なのでCHECKしてください。");return}
-  const paid=putChips("P",call);
-  document.getElementById("status").innerHTML+="<br>プレイヤー：CALL ("+paid+"円)";
-  actorIndex++;nextActor();
-}
-
-function playerCheck(){
-  if(!canPlayerAct())return;
-  if(requiredToCall("P")>0){alert("ベットされているためCHECKできません。CALL・RAISE・FOLDを選択してください。");return}
-  document.getElementById("status").innerHTML+="<br>プレイヤー：CHECK";
-  actorIndex++;nextActor();
-}
-
-function playerBetOrRaise(){
-  if(!canPlayerAct())return;
-  const input=Number(document.getElementById("betInput").value);
-  if(!Number.isFinite(input)||input<=0){alert("1円以上を入力してください。");return}
-  const call=requiredToCall("P");
-  let target;
-  if(currentBet===0){
-    target=input;
-    if(target<100){alert("最初のBETは100円以上にしてください。");return}
-  }else{
-    target=input;
-    if(target<=currentBet){alert("RAISEは現在のレイズ額より大きくしてください。");return}
+function canPlayerAct() {
+  if (!gameStarted || !waitingForPlayer || gameStep === 4 || !playerActive) {
+    alert("今はあなたの番ではありません。");
+    return false;
   }
-  const amount=target-playerStreetBet;
-  if(amount>money){alert("所持金が足りません。");return}
-  putChips("P",amount);
-  currentBet=playerStreetBet;updateRaiseDisplay();
-  document.getElementById("status").innerHTML+="<br>プレイヤー："+(call===0?"BET ":"RAISE ")+target+"円";
-  actorIndex++;nextActor();
+  return true;
 }
 
-function playerFold(){
-  if(!canPlayerAct())return;
-  playerActive=false;
-  document.getElementById("status").innerHTML+="<br>プレイヤー：FOLD<br>ゲーム終了。";
-  gameStarted=false;gameStep=4;
-  updateSessionBest();saveRankingRecord();updateRaiseDisplay();
+function trackPlayerAction(actionType) {
+  if (gameStep === 0) {
+    if (!currentHandTrack.vpip && (actionType === "CALL" || actionType === "RAISE")) {
+      currentHandTrack.vpip = true;
+      playerStats.vpipCount++;
+    }
+    if (!currentHandTrack.pfr && actionType === "RAISE") {
+      currentHandTrack.pfr = true;
+      playerStats.pfrCount++;
+    }
+  } else {
+    if (actionType === "RAISE" || actionType === "BET") {
+      playerStats.postFlopBets++;
+    } else if (actionType === "CALL" || actionType === "CHECK") {
+      playerStats.postFlopCalls++;
+    }
+  }
+  savePlayerStats();
 }
 
-function canPlayerAct(){if(!gameStarted||!waitingForPlayer||gameStep===4||!playerActive){alert("今はあなたの番ではありません。");return false}return true}
+function playerCall() {
+  if (!canPlayerAct()) return;
+  const call = requiredToCall("P");
+  if (call === 0) { alert("現在のレイズ額が0円なのでCHECKしてください。"); return; }
+  
+  trackPlayerAction("CALL");
+  const paid = putChips("P", call);
+  document.getElementById("status").innerHTML += "<br>プレイヤー：CALL (" + paid + "円)";
+  actorIndex++; nextActor();
+}
 
-function endStreet(){
-  if(activeCount()<=1){showdown();return}
+function playerCheck() {
+  if (!canPlayerAct()) return;
+  if (requiredToCall("P") > 0) { alert("ベットされているためCHECKできません。CALL・RAISE・FOLDを選択してください。"); return; }
+  
+  trackPlayerAction("CHECK");
+  document.getElementById("status").innerHTML += "<br>プレイヤー：CHECK";
+  actorIndex++; nextActor();
+}
+
+function playerBetOrRaise() {
+  if (!canPlayerAct()) return;
+  const input = Number(document.getElementById("betInput").value);
+  if (!input || input <= 0) { alert("正しい金額を入力してください。"); return; }
+
+  const call = requiredToCall("P");
+  const minTarget = currentBet === 0 ? 100 : currentBet + 100;
+  
+  let target = input;
+  if (target < minTarget) target = minTarget;
+
+  const amount = target - playerStreetBet;
+  if (amount > money) { alert("所持金が足りません。"); return; }
+
+  trackPlayerAction(call === 0 ? "BET" : "RAISE");
+  putChips("P", amount);
+  currentBet = playerStreetBet; updateRaiseDisplay();
+  document.getElementById("status").innerHTML += "<br>プレイヤー：" + (call === 0 ? "BET " : "RAISE ") + target + "円";
+  actorIndex++; nextActor();
+}
+
+function playerFold() {
+  if (!canPlayerAct()) return;
+  playerActive = false;
+  document.getElementById("status").innerHTML += "<br>プレイヤー：FOLD<br>ゲーム終了。";
+  gameStarted = false; gameStep = 4;
+  updateSessionBest(); saveRankingRecord(); updateRaiseDisplay();
+}
+
+function endStreet() {
+  actorIndex = 0;
   gameStep++;
-  if(gameStep===1)flop();
-  else if(gameStep===2)turn();
-  else if(gameStep===3)river();
+  if (gameStep === 1) flop();
+  else if (gameStep === 2) turn();
+  else if (gameStep === 3) river();
   else showdown();
 }
 
-function flop(){
-  community.push(deck.pop(),deck.pop(),deck.pop());
-  showText("c1",community[0]);showText("c2",community[1]);showText("c3",community[2]);
-  document.getElementById("status").innerHTML+="<br>--- FLOP公開 ---";
-  startStreet();
-}
-function turn(){
-  community.push(deck.pop());showText("c4",community[3]);
-  document.getElementById("status").innerHTML+="<br>--- TURN公開 ---";
-  startStreet();
-}
-function river(){
-  community.push(deck.pop());showText("c5",community[4]);
-  document.getElementById("status").innerHTML+="<br>--- RIVER公開 ---";
+function flop() {
+  community.push(deck.pop(), deck.pop(), deck.pop());
+  showText("c1", community[0]); showText("c2", community[1]); showText("c3", community[2]);
+  setStatus("<br>--- FLOP ---");
   startStreet();
 }
 
-function evaluateHand(cards){
-  const rv={"A":14,"K":13,"Q":12,"J":11,"10":10,"9":9,"8":8,"7":7,"6":6,"5":5,"4":4,"3":3,"2":2};
+function turn() {
+  community.push(deck.pop());
+  showText("c4", community[3]);
+  setStatus("<br>--- TURN ---");
+  startStreet();
+}
+
+function river() {
+  community.push(deck.pop());
+  showText("c5", community[4]);
+  setStatus("<br>--- RIVER ---");
+  startStreet();
+}
+
+function evaluateHand(cards) {
+  const rv = { "A": 14, "K": 13, "Q": 12, "J": 11, "10": 10, "9": 9, "8": 8, "7": 7, "6": 6, "5": 5, "4": 4, "3": 3, "2": 2 };
   const combos = getCombinations(cards, 5);
   let bestHand = null;
 
-  for(const c of combos){
+  for (const c of combos) {
     const evaluated = eval5(c, rv);
-    if(!bestHand || compareHandArrays(evaluated.scoreArr, bestHand.scoreArr) > 0){
+    if (!bestHand || compareHandArrays(evaluated.scoreArr, bestHand.scoreArr) > 0) {
       bestHand = evaluated;
     }
   }
@@ -434,119 +635,170 @@ function getCombinations(arr, k) {
   return [...withHead, ...withoutHead];
 }
 
-function eval5(cards5, rv){
-  const rs=cards5.map(c=>c.slice(0,-1)), ss=cards5.map(c=>c.slice(-1));
-  const vals=rs.map(r=>rv[r]).sort((a,b)=>b-a);
-  const isFlush=ss.every(s=>s===ss[0]);
-  
-  const uniq=[...new Set(vals)].sort((a,b)=>b-a);
-  let isStraight=false, straightHigh=0;
-  if(uniq.length===5){
-    if(uniq[0]-uniq[4]===4){ isStraight=true; straightHigh=uniq[0]; }
-    else if(uniq[0]===14 && uniq[1]===5 && uniq[2]===4 && uniq[3]===3 && uniq[4]===2){
-      isStraight=true; straightHigh=5;
+function eval5(cards5, rv) {
+  const rs = cards5.map(c => c.slice(0, -1)), ss = cards5.map(c => c.slice(-1));
+  const vals = rs.map(r => rv[r]).sort((a, b) => b - a);
+  const isFlush = ss.every(s => s === ss[0]);
+
+  const uniq = [...new Set(vals)].sort((a, b) => b - a);
+  let isStraight = false, straightHigh = 0;
+  if (uniq.length === 5) {
+    if (uniq[0] - uniq[4] === 4) { isStraight = true; straightHigh = uniq[0]; }
+    else if (uniq[0] === 14 && uniq[1] === 5 && uniq[2] === 4 && uniq[3] === 3 && uniq[4] === 2) {
+      isStraight = true; straightHigh = 5;
     }
   }
 
-  const counts={};
-  for(const v of vals) counts[v]=(counts[v]||0)+1;
-  const countEntries = Object.entries(counts).map(([v,c])=>({val:Number(v),count:c}))
-    .sort((a,b)=> b.count !== a.count ? b.count - a.count : b.val - a.val);
+  const counts = {};
+  for (const v of vals) counts[v] = (counts[v] || 0) + 1;
+  const countEntries = Object.entries(counts).map(([v, c]) => ({ val: Number(v), count: c }))
+    .sort((a, b) => b.count !== a.count ? b.count - a.count : b.val - a.val);
 
-  let category=0, name="ハイカード";
-  if(isStraight && isFlush){ category=8; name="ストレートフラッシュ"; }
-  else if(countEntries[0].count===4){ category=7; name="フォーカード"; }
-  else if(countEntries[0].count===3 && countEntries[1].count===2){ category=6; name="フルハウス"; }
-  else if(isFlush){ category=5; name="フラッシュ"; }
-  else if(isStraight){ category=4; name="ストレート"; }
-  else if(countEntries[0].count===3){ category=3; name="スリーカード"; }
-  else if(countEntries[0].count===2 && countEntries[1].count===2){ category=2; name="ツーペア"; }
-  else if(countEntries[0].count===2){ category=1; name="ワンペア"; }
+  let category = 0, name = "ハイカード";
+  if (isStraight && isFlush) { category = 8; name = "ストレートフラッシュ"; }
+  else if (countEntries[0].count === 4) { category = 7; name = "フォーカード"; }
+  else if (countEntries[0].count === 3 && countEntries[1].count === 2) { category = 6; name = "フルハウス"; }
+  else if (isFlush) { category = 5; name = "フラッシュ"; }
+  else if (isStraight) { category = 4; name = "ストレート"; }
+  else if (countEntries[0].count === 3) { category = 3; name = "スリーカード"; }
+  else if (countEntries[0].count === 2 && countEntries[1].count === 2) { category = 2; name = "ツーペア"; }
+  else if (countEntries[0].count === 2) { category = 1; name = "ワンペア"; }
 
   let scoreArr = [category];
-  if(category===8 || category===4){
+  if (category === 8 || category === 4) {
     scoreArr.push(straightHigh);
   } else {
-    for(const e of countEntries){
-      scoreArr.push(e.val);
-    }
+    for (const e of countEntries) scoreArr.push(e.val);
   }
 
-  return {category, name, scoreArr};
+  return { category, name, scoreArr };
 }
 
-function compareHandArrays(a, b){
-  for(let i=0; i<Math.max(a.length, b.length); i++){
+function compareHandArrays(a, b) {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const valA = a[i] || 0;
     const valB = b[i] || 0;
-    if(valA !== valB) return valA - valB;
+    if (valA !== valB) return valA - valB;
   }
   return 0;
 }
 
-function showdown(){
-  if(!gameStarted&&gameStep===4)return;
-  const board=[...community],results=[];
-  if(playerActive) results.push({name:"プレイヤー",active:true,hand:evaluateHand([...player,...board])});
-  for(const pos of ["LT","LB","RT","RB"]){
-    if(cpuState[pos].active)results.push({name:"CPU_"+pos,active:true,hand:evaluateHand([...cpu[pos],...board])});
+function showdown() {
+  if (!gameStarted && gameStep === 4) return;
+  const board = [...community], results = [];
+
+  if (playerActive) {
+    const playerHand = evaluateHand([...player, ...board]);
+    results.push({ name: "プレイヤー", active: true, hand: playerHand });
+
+    playerStats.showdownCount++;
+    if (playerHand.category <= 1 && playerStats.postFlopBets > 0) {
+      playerStats.bluffShowdowns++;
+    }
+    savePlayerStats();
   }
-  
-  let winners=[];
-  for(const r of results){
-    if(winners.length===0){
-      winners=[r];
-    }else{
-      const cmp = compareHandArrays(r.hand.scoreArr, winners[0].hand.scoreArr);
-      if(cmp > 0){ winners=[r]; }
-      else if(cmp === 0){ winners.push(r); }
+
+  for (const pos of ["LT", "LB", "RT", "RB"]) {
+    if (cpuState[pos].active) {
+      results.push({ name: "CPU_" + pos, active: true, hand: evaluateHand([...cpu[pos], ...board]) });
     }
   }
 
-  for(const pos of ["LT","LB","RT","RB"])showText("cpu"+pos,cpuState[pos].active?cpu[pos][0]+" "+cpu[pos][1]:"FOLD");
-  let msg="<br>--- SHOWDOWN ---<br>";
-  for(const r of results)msg+=r.name+"："+r.hand.name+"<br>";
-  msg+="<br>勝者："+winners.map(x=>x.name).join(" / ")+"<br>";
-  const share=Math.floor(pot/winners.length),remainder=pot%winners.length;
-  for(const w of winners){
-    if(w.name==="プレイヤー")money+=share;
-    else cpu[w.name.replace("CPU_","")].money+=share;
+  let winners = [];
+  for (const r of results) {
+    if (winners.length === 0) {
+      winners = [r];
+    } else {
+      const cmp = compareHandArrays(r.hand.scoreArr, winners[0].hand.scoreArr);
+      if (cmp > 0) { winners = [r]; }
+      else if (cmp === 0) { winners.push(r); }
+    }
   }
-  if(winners.some(w=>w.name==="プレイヤー")&&remainder)money+=remainder;
-  msg+="ポット："+pot+"円を分配しました。<br>";
-  document.getElementById("status").innerHTML+=msg;
-  updateSessionBest();saveRankingRecord();
-  pot=0;currentBet=0;updateMoney();updatePotDisplay();updateRaiseDisplay();
-  gameStarted=false;gameStep=4;
+
+  for (const pos of ["LT", "LB", "RT", "RB"]) {
+    showText("cpu" + pos, cpuState[pos].active ? cpu[pos][0] + " " + cpu[pos][1] : "FOLD");
+  }
+
+  let msg = "<br>--- SHOWDOWN ---<br>";
+  for (const r of results) msg += r.name + "：" + r.hand.name + "<br>";
+
+  const share = Math.floor(pot / winners.length);
+  msg += "<br>【勝者】 " + winners.map(w => w.name).join(", ") + " (獲得: " + share + "円)";
+
+  for (const w of winners) {
+    if (w.name === "プレイヤー") money += share;
+    else {
+      const pos = w.name.replace("CPU_", "");
+      if (cpuState[pos]) cpuState[pos].stack += share;
+    }
+  }
+
+  setStatus(msg);
+  updateSessionBest(); saveRankingRecord();
+  pot = 0; currentBet = 0; updateMoney(); updatePotDisplay(); updateRaiseDisplay();
+  gameStarted = false; gameStep = 4;
 }
 
-function showRanking(){
+function updateSessionBest() { if (money > sessionBest) sessionBest = money; }
+
+// --- オンラインデータベース（Firebase）への記録保存 ---
+function saveRankingRecord() {
   updateSessionBest();
-  saveRankingRecord();
-  const list=(ranking[cpuLevel]||[])
-    .slice()
-    .sort((a,b)=>{
-      if(b.money !== a.money) return b.money - a.money;
-      const timeA = a.timestamp || 0;
-      const timeB = b.timestamp || 0;
-      if(timeA !== timeB) return timeB - timeA;
-      return 1;
-    })
-    .slice(0,100);
+  if (!playerName) return;
 
-  document.getElementById("status").innerHTML=
-    "<h2>ランキング（レベル"+cpuLevel+"）</h2>"+
-    "<div style='margin-bottom:8px'>あなたの最高金額："+sessionBest+"円</div>"+
-    (list.length
-      ? list.map((r,i)=>(i+1)+"位："+r.name+" "+r.money+"円").join("<br>")
-      : "まだ記録がありません。");
+  const userRef = database.ref('rankings/level_' + cpuLevel + '/' + playerName);
+  
+  userRef.once('value', (snapshot) => {
+    const currentData = snapshot.val();
+    // 既存の記録より高い場合、または初回の場合のみ更新
+    if (!currentData || sessionBest > currentData.money) {
+      userRef.set({
+        name: playerName,
+        money: sessionBest,
+        timestamp: Date.now()
+      });
+    }
+  });
 }
 
-function showRules(){
-  document.getElementById("status").innerHTML=`
+// --- オンラインランキングの読み込み・表示 ---
+function showRanking() {
+  updateSessionBest(); 
+  saveRankingRecord();
+
+  document.getElementById("status").innerHTML = "オンラインランキングを取得中...";
+
+  const levelRef = database.ref('rankings/level_' + cpuLevel);
+
+  // 金額順（昇順で取得されるため後でreverseします）で上位10件取得
+  levelRef.orderByChild('money').limitToLast(10).once('value', (snapshot) => {
+    let list = [];
+    snapshot.forEach((childSnapshot) => {
+      list.push(childSnapshot.val());
+    });
+
+    // 降順（高い順）にソート
+    list.reverse();
+
+    let html = "<h2>オンラインランキング (レベル " + cpuLevel + ")</h2>";
+    if (list.length > 0) {
+      list.forEach((r, i) => {
+        html += (i + 1) + "位：" + r.name + " " + r.money + "円<br>";
+      });
+    } else {
+      html += "まだこのレベルの記録はありません。";
+    }
+    document.getElementById("status").innerHTML = html;
+  }, (error) => {
+    document.getElementById("status").innerHTML = "ランキングの取得に失敗しました。";
+  });
+}
+
+function showRules() {
+  document.getElementById("status").innerHTML = `
   <h2>テキサスホールデム（このゲームのルール）</h2>
-  ① 全員がアンティ100円を支払って開始<br>
-  ② 各ラウンドでBET / CALL / CHECK / RAISE / FOLD<br>
+  ① 全員に2枚の手札と5枚のコミュニティカードが配られます<br>
+  ② 各ラウンドで BET / RAISE / CALL / CHECK / FOLD を選択<br>
   ③ RAISE後は、他の参加者がそのベット額に合わせるまで同じラウンドを続行<br>
   ④ FLOP → TURN → RIVER の順に場札を公開<br>
   ⑤ RIVER後、残ったプレイヤーでSHOWDOWN<br>
@@ -554,9 +806,10 @@ function showRules(){
   ⑦ 同じ強さならポットを分配
   `;
 }
-updateMoney();updatePotDisplay();updateRaiseDisplay();
 
-window.addEventListener("beforeunload",()=>{
+updateMoney(); updatePotDisplay(); updateRaiseDisplay();
+
+window.addEventListener("beforeunload", () => {
   updateSessionBest();
   saveRankingRecord();
 });
