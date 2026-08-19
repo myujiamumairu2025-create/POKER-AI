@@ -653,15 +653,20 @@ function cpuStreetEV(pos) {
     return cpuExpectValue(cpu[pos][0], cpu[pos][1]);
   }
 
-  if (gameStep === 1) {
-    return evaluateHand([...cpu[pos], ...community.slice(0,3)]).scoreArr[0] / 8;
-  }
+  const cards = [...cpu[pos], ...community];
+  const hand = evaluateHand(cards);
+  const category = hand ? hand.category : 0;
 
-  if (gameStep === 2) {
-    return evaluateHand([...cpu[pos], ...community.slice(0,4)]).scoreArr[0] / 8;
-  }
+  // 役の強さを「0〜1」に近い値へ変換。
+  // 以前は category / 8 だったため、ワンペア=0.125、ツーペア=0.25となり、
+  // 少しレイズされるだけでCPUが大量にFOLDしやすかった。
+  const base = [0.20, 0.38, 0.52, 0.65, 0.76, 0.84, 0.91, 0.97, 1.00][category] || 0.20;
 
-  return evaluateHand([...cpu[pos], ...community]).scoreArr[0] / 8;
+  // ハイカードの質を少しだけ加味
+  const high = hand && hand.scoreArr ? (hand.scoreArr[1] || 0) : 0;
+  const kickerBonus = Math.min(0.08, high / 14 * 0.08);
+
+  return Math.min(1, base + kickerBonus);
 }
 
 /* ============================================================
@@ -692,32 +697,58 @@ function cpuDecision(pos) {
   let styleEV = ev;
   const style = cpuStyle[pos];
 
-  if (style === "TP") styleEV -= 0.10;
-  if (style === "TA") styleEV += 0.10;
-  if (style === "LP") styleEV += 0.05;
-  if (style === "LA") styleEV += 0.20;
+  // 性格による補正。ただし以前よりフォールドしにくくする。
+  if (style === "TP") styleEV -= 0.04;
+  if (style === "TA") styleEV += 0.06;
+  if (style === "LP") styleEV += 0.08;
+  if (style === "LA") styleEV += 0.12;
 
   const canRaise = cpuRaiseTotal[pos] < getCpuRaiseLimit();
-  const raiseLimit = maxRaiseCountByStreet[gameStep];
+  const raiseLimit = maxRaiseCountByStreet[gameStep] ?? 0;
 
-  /* ---------- ターン・リバーでフォールド判断 ---------- */
-  if (gameStep >= 2) {
-    if (styleEV < 0.40 && call > 300) return "fold";
-    if (styleEV < 0.30) return "fold";
+  // 自分の残りスタックに対して、今回のCALLがどれだけ大きいか。
+  const callRatio = stack > 0 ? call / stack : 1;
+
+  // プレイヤーがかなり大きくレイズした場合だけ、弱いCPUが降りやすくなる。
+  // 「少しレイズしただけで全員FOLD」を防ぐ。
+  if (call > 0) {
+    if (styleEV < 0.28 && callRatio > 0.55) return "fold";
+    if (styleEV < 0.20 && callRatio > 0.30) return "fold";
+
+    // ワンペア以上なら、通常のレイズにはかなりついてくる。
+    if (styleEV >= 0.38 && callRatio <= 0.45) {
+      if (styleEV >= 0.72 && canRaise && cpuRaiseCount[pos] < raiseLimit && Math.random() < 0.25) {
+        return "raise";
+      }
+      return "call";
+    }
+
+    // ハイカードでも小〜中程度のCALLなら一定確率で参加。
+    if (styleEV >= 0.27 && callRatio <= 0.25) {
+      return Math.random() < 0.82 ? "call" : "fold";
+    }
   }
 
   if (call === 0) {
-    if (styleEV > 0.55 && canRaise && cpuRaiseCount[pos] < raiseLimit) {
-      return "raise";
+    if (styleEV > 0.70 && canRaise && cpuRaiseCount[pos] < raiseLimit) {
+      return Math.random() < 0.45 ? "raise" : "check";
+    }
+    if (styleEV > 0.48 && style === "LA" && canRaise && cpuRaiseCount[pos] < raiseLimit) {
+      return Math.random() < 0.25 ? "raise" : "check";
     }
     return "check";
   }
 
-  if (styleEV > 0.65 && canRaise && cpuRaiseCount[pos] < raiseLimit) {
-    return "raise";
+  // 強い手は大きなレイズにも積極的に対応。
+  if (styleEV >= 0.70) {
+    if (canRaise && cpuRaiseCount[pos] < raiseLimit && callRatio < 0.65 && Math.random() < 0.20) {
+      return "raise";
+    }
+    return "call";
   }
 
-  if (styleEV >= 0.25) return "call";
+  // 中程度の手は基本CALL。かなり大きなベットだけFOLD。
+  if (styleEV >= 0.30 && callRatio < 0.65) return "call";
 
   return "fold";
 }
