@@ -515,6 +515,8 @@ function startGame() {
   currentBet = 0;
   playerStreetBet = 0;
   playerActive = true;
+  waitingForPlayer = false;
+  activePositions = [];
   gameStarted = true;
   gameStep = 0;          // プリフロップから開始
   waitingForPlayer = false;
@@ -561,8 +563,7 @@ function startGame() {
   updateRaiseDisplay();
 }
 </script>
-</body>
-</html>
+
 <script>
 /* ============================================================
    ストリート開始（プリフロップは必ずプレイヤーから）
@@ -581,6 +582,7 @@ function startStreet() {
 
   /* ★ プリフロップは必ずプレイヤーから行動開始 */
   if (gameStep === 0) {
+    activePositions = actors.filter(p => isPosActive(p));
     waitingForPlayer = true;
     actorIndex = 0;
     document.getElementById("status").innerHTML += "<br>プリフロップ：あなたの番です。";
@@ -588,6 +590,7 @@ function startStreet() {
   }
 
   /* ★ フロップ以降は通常の行動順 */
+  activePositions = actors.filter(p => isPosActive(p));
   waitingForPlayer = true;
   actorIndex = 0;
   nextActor();
@@ -601,7 +604,7 @@ function nextActor() {
   if (!gameStarted || gameStep === 4) return;
 
   if (activeCount() === 1) {
-    showdown();
+    awardUncontestedPot();
     return;
   }
 
@@ -609,6 +612,12 @@ function nextActor() {
   const allMatched = activeList.every(p =>
     getStreetBet(p) === currentBet || getStack(p) === 0
   );
+
+  // 全員が現在のベット額に揃ったら、このストリートを終了
+  if (allMatched && actorIndex > 0) {
+    endStreet();
+    return;
+  }
 
   if (actorIndex >= activePositions.length) {
     if (allMatched) {
@@ -735,18 +744,30 @@ function cpuAct(pos) {
 
   /* ---------- CALL ---------- */
   else if (action === "call") {
-    const paid = putChips(pos, Math.min(call, limitRemain));
-    cpuRaiseTotal[pos] += paid;
-    showText("cpu" + pos + "_action", "CALL " + paid + "円");
+    const pay = Math.min(call, getStack(pos));
+    if (pay <= 0) {
+      cpuState[pos].active = false;
+      showText("cpu" + pos + "_action", "FOLD");
+    } else {
+      const paid = putChips(pos, pay);
+      cpuRaiseTotal[pos] += paid;
+      showText("cpu" + pos + "_action", "CALL " + paid + "円");
+    }
   }
 
   /* ---------- RAISE ---------- */
   else if (action === "raise") {
 
     if (call > limitRemain) {
-      const paid = putChips(pos, limitRemain);
-      cpuRaiseTotal[pos] += paid;
-      showText("cpu" + pos + "_action", "CALL " + paid + "円");
+      const pay = Math.min(call, getStack(pos));
+      if (pay <= 0) {
+        cpuState[pos].active = false;
+        showText("cpu" + pos + "_action", "FOLD");
+      } else {
+        const paid = putChips(pos, pay);
+        cpuRaiseTotal[pos] += paid;
+        showText("cpu" + pos + "_action", "CALL " + paid + "円");
+      }
       actorIndex++;
       setTimeout(nextActor, 350);
       return;
@@ -771,9 +792,15 @@ function cpuAct(pos) {
     }
 
     if (raiseAmount <= 0) {
-      const paid = putChips(pos, call);
-      cpuRaiseTotal[pos] += paid;
-      showText("cpu" + pos + "_action", "CALL " + paid + "円");
+      const pay = Math.min(call, getStack(pos));
+      if (pay <= 0) {
+        cpuState[pos].active = false;
+        showText("cpu" + pos + "_action", "FOLD");
+      } else {
+        const paid = putChips(pos, pay);
+        cpuRaiseTotal[pos] += paid;
+        showText("cpu" + pos + "_action", "CALL " + paid + "円");
+      }
       actorIndex++;
       setTimeout(nextActor, 350);
       return;
@@ -820,7 +847,8 @@ function playerCall() {
 
   const paid = putChips("P", call);
   document.getElementById("status").innerHTML +=
-    "<br>プレイヤー：CALL (" + paid + "円)";
+    "<br>プレイヤー：CALL (" + paid + "円)" +
+    (paid < call ? "（オールイン）" : "");
 
   actorIndex++;
   nextActor();
@@ -853,6 +881,13 @@ function playerBetOrRaise() {
   const minTarget = (currentBet === 0) ? 100 : currentBet + 100;
 
   let target = Math.max(input, minTarget);
+
+  // すでに自分が入れている額を下回る入力は不可
+  if (target <= playerStreetBet) {
+    alert("現在のベット額より大きい金額を入力してください。");
+    return;
+  }
+
   const amount = target - playerStreetBet;
 
   if (amount > money) {
@@ -877,12 +912,17 @@ function playerFold() {
   playerActive = false;
 
   document.getElementById("status").innerHTML +=
-    "<br>プレイヤー：FOLD<br>ゲーム終了。";
+    "<br>プレイヤー：FOLD";
 
-  gameStarted = false;
-  gameStep = 4;
-
-  updateRaiseDisplay();
+  // 最後の1人が残った場合はそのCPUがポットを獲得
+  if (activeCount() === 1) {
+    awardUncontestedPot();
+  } else {
+    gameStarted = false;
+    gameStep = 4;
+    waitingForPlayer = false;
+    updateRaiseDisplay();
+  }
 }
 
 </script>
@@ -1027,11 +1067,55 @@ function river() {
 }
 
 /* ============================================================
+   フォールドで最後の1人になった場合のポット総取り
+============================================================ */
+function awardUncontestedPot() {
+  const survivors = actors.filter(p => isPosActive(p));
+
+  if (survivors.length !== 1) return;
+
+  const winner = survivors[0];
+  const amount = pot;
+
+  if (amount > 0) {
+    setStack(winner, getStack(winner) + amount);
+  }
+
+  const winnerName = winner === "P" ? "プレイヤー" : "CPU_" + winner;
+
+  document.getElementById("status").innerHTML +=
+    `<br>--- 勝者決定 ---<br>全員フォールド。<br>【勝者】 ${winnerName}（ポット ${amount}円を獲得）`;
+
+  pot = 0;
+  currentBet = 0;
+  playerStreetBet = 0;
+  gameStarted = false;
+  gameStep = 4;
+  waitingForPlayer = false;
+
+  updateMoney();
+  updatePotDisplay();
+  updateRaiseDisplay();
+
+  updateSessionBest();
+  saveRankingRecord();
+}
+
+/* ============================================================
    SHOWDOWN（勝者決定＋賞金分配）
 ============================================================ */
 function showdown() {
 
   if (!gameStarted && gameStep === 4) return;
+
+  // まだ5枚のコミュニティカードが揃っていない状態では、
+  // 通常のSHOWDOWNを行わない。
+  if (community.length < 5) {
+    if (activeCount() === 1) {
+      awardUncontestedPot();
+    }
+    return;
+  }
 
   const board = [...community];
   const results = [];
@@ -1057,6 +1141,12 @@ function showdown() {
   });
 
   /* 勝者決定 */
+  if (results.length === 0) {
+    gameStarted = false;
+    gameStep = 4;
+    return;
+  }
+
   let winners = [];
   for (const r of results) {
     if (!winners.length) winners = [r];
@@ -1106,9 +1196,14 @@ function showdown() {
 /* ============================================================
    セッション最高額更新
 ============================================================ */
-let sessionBest = money;
+let sessionBest = Math.max(
+  money,
+  Number(localStorage.getItem("pokerSessionBest")) || 0
+);
+
 function updateSessionBest() {
   if (money > sessionBest) sessionBest = money;
+  localStorage.setItem("pokerSessionBest", String(sessionBest));
 }
 
 /* ============================================================
@@ -1195,7 +1290,9 @@ function showRanking() {
 ============================================================ */
 window.addEventListener("beforeunload", () => {
   updateSessionBest();
-  saveRankingRecord();
+  // Firebaseの非同期通信はbeforeunload時に完了しない場合があるため、
+  // ここではローカルの最高額更新だけ行う。
+  localStorage.setItem("pokerSessionBest", String(sessionBest));
 });
 
 /* ============================================================
@@ -1228,7 +1325,7 @@ function showCpuDebug() {
     const ev = cpuStreetEV(pos).toFixed(3);
     const style = cpuStyle[pos];
     const raises = cpuRaiseCount[pos];
-    const limit = maxRaiseCountByStreet[gameStep];
+    const limit = maxRaiseCountByStreet[gameStep] ?? 0;
     const stack = cpuState[pos].stack;
 
     html += `
@@ -1339,6 +1436,9 @@ function addDebugButtons() {
   `;
 }
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
